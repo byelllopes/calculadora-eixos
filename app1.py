@@ -100,23 +100,47 @@ if exercicio in ["Exercício 1", "Exercício 2"]:
         cols[0].info(f"**Mancal A (z = 0 pol):**\n\nReação X: {R_Ax:.2f} lb\n\nReação Y: {R_Ay:.2f} lb")
         cols[1].info(f"**Mancal C (z = 20 pol):**\n\nReação X: {R_Cx:.2f} lb\n\nReação Y: {R_Cy:.2f} lb")
         
-        # Gráficos usando Macaulay
+       # Gráficos usando Macaulay
         st.subheader("📊 Diagramas de Esforços Solicitantes (Plano XZ)")
         z_mesh = np.linspace(0, 26.0, 1000)
         Vx = R_Ax*(z_mesh>=0) + F_tB*(z_mesh>=10) + R_Cx*(z_mesh>=20)
         My = R_Ax*z_mesh*(z_mesh>=0) + F_tB*(z_mesh-10)*(z_mesh>=10) + R_Cx*(z_mesh-20)*(z_mesh>=20)
         
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
+        # Pontos exatos onde os elementos estão instalados
+        z_pontos = [0, 10, 20, 26]
+        # Valores de momento fletor exatos nesses pontos
+        m_pontos = [0, (R_Ax*10), (R_Ax*20 + F_tB*10), 0]
+        nomes_pontos = ["A (Mancal)", "B (Pinhão)", "C (Mancal)", "D (Polia)"]
+        
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 7), sharex=True)
+        
+        # --- Gráfico de Esforço Cortante ---
         ax1.plot(z_mesh, Vx, color='blue', drawstyle='steps-post')
         ax1.fill_between(z_mesh, Vx, step='post', alpha=0.15, color='blue')
         ax1.set_ylabel("Cortante V (lb)")
         ax1.grid(True, linestyle='--')
         
+        # --- Gráfico de Momento Fletor ---
         ax2.plot(z_mesh, My, color='red')
         ax2.fill_between(z_mesh, My, alpha=0.15, color='red')
         ax2.set_xlabel("Posição z ao longo do eixo (pol)")
         ax2.set_ylabel("Momento M (lb.pol)")
         ax2.grid(True, linestyle='--')
+        
+        # Adicionando Linhas, Pontos e Textos
+        for i, z in enumerate(z_pontos):
+            # Linha vertical pontilhada nos dois gráficos
+            ax1.axvline(x=z, color='black', linestyle=':', alpha=0.5)
+            ax2.axvline(x=z, color='black', linestyle=':', alpha=0.5)
+            
+            # Bolinha preta no gráfico de Momento e nome do elemento
+            ax2.plot(z, m_pontos[i], 'ko') 
+            ax1.text(z, ax1.get_ylim()[1], f" {nomes_pontos[i]}", rotation=90, va='top', ha='right', alpha=0.6)
+            
+            # Escrevendo o valor do momento fletor do lado do ponto (evitando sobrepor o zero)
+            if m_pontos[i] != 0:
+                ax2.text(z, m_pontos[i], f" {m_pontos[i]:.1f} lb.pol", va='bottom', ha='left', fontsize=10, fontweight='bold')
+
         st.pyplot(fig)
 
 # =========================================================
