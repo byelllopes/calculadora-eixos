@@ -59,24 +59,43 @@ if st.button("Calcular e Gerar Relatório"):
 # ---------------------------------------------------------
     st.subheader("📊 Diagramas de Esforços Internos")
     
-    # Para traçar o gráfico, você precisa criar um vetor de posições (z)
+    # Vetor de posições (z)
     comprimento_eixo = 26.0
     z = np.linspace(0, comprimento_eixo, 500)
     
-    # LÓGICA DO GRÁFICO (Exemplo genérico - Você precisará usar as funções de Macaulay)
-    # Aqui criamos um vetor de momento fletor fictício para demonstração
+    # Lógica do Momento Fletor (M) - Exemplo didático
     momento_y = np.piecewise(z, [z < 10, (z >= 10) & (z < 20), z >= 20], 
                              [lambda z: 15*z, lambda z: 150 - 5*(z-10), lambda z: 100 - 10*(z-20)])
     
-    fig, ax = plt.subplots(figsize=(10, 4))
-    ax.plot(z, momento_y, label="Momento Fletor (Plano XZ)", color='red')
-    ax.fill_between(z, momento_y, alpha=0.2, color='red')
-    ax.axhline(0, color='black', linewidth=1)
-    ax.set_xlabel("Comprimento do Eixo (pol)")
-    ax.set_ylabel("Momento (lb.pol)")
-    ax.set_title("Diagrama de Momento Fletor")
-    ax.legend()
-    ax.grid(True)
+    # Lógica do Esforço Cortante (V) - É a derivada do momento (formato de degraus)
+    cortante_y = np.piecewise(z, [z < 10, (z >= 10) & (z < 20), z >= 20], 
+                              [15, -5, -10])
     
-    # Renderiza o gráfico no Streamlit
+    # Criando a figura com 2 gráficos empilhados (2 linhas, 1 coluna)
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+    
+    # --- GRÁFICO 1: ESFORÇO CORTANTE (V) ---
+    # drawstyle='steps-post' garante que a linha faça um formato de degrau quadrado
+    ax1.plot(z, cortante_y, label="Esforço Cortante (Plano XZ)", color='blue', drawstyle='steps-post')
+    ax1.fill_between(z, cortante_y, step="post", alpha=0.2, color='blue')
+    ax1.axhline(0, color='black', linewidth=1)
+    ax1.set_ylabel("Força Cortante (lb)")
+    ax1.set_title("Diagrama de Esforço Cortante (V)")
+    ax1.legend()
+    ax1.grid(True)
+    
+    # --- GRÁFICO 2: MOMENTO FLETOR (M) ---
+    ax2.plot(z, momento_y, label="Momento Fletor (Plano XZ)", color='red')
+    ax2.fill_between(z, momento_y, alpha=0.2, color='red')
+    ax2.axhline(0, color='black', linewidth=1)
+    ax2.set_xlabel("Comprimento do Eixo (pol)")
+    ax2.set_ylabel("Momento (lb.pol)")
+    ax2.set_title("Diagrama de Momento Fletor (M)")
+    ax2.legend()
+    ax2.grid(True)
+    
+    # Ajusta o espaçamento para não sobrepor os textos
+    plt.tight_layout()
+    
+    # Renderiza no Streamlit
     st.pyplot(fig)
