@@ -93,4 +93,5 @@ if st.button("Calcular e Gerar Relatório", type="primary"):
         st.write(f"Reação em Y (RAy): `{R_Ay:.2f} lb`")
     with col_C:
         st.write("**Mancal C (Apoio, z = 20 pol):**")
-     st.write(f"Reação em Y (RCy): `{R_Cy:.2f} lb`")
+     st.write(f"Reação em X (RCx): `{R_Cx:.2f} lb`")
+    st.write(f"Reação em Y (RCy): `{R_Cy:.2f} lb`")
