@@ -2,6 +2,8 @@ import streamlit as st
 import math
 import numpy as np
 import matplotlib.pyplot as plt
+from fpdf import FPDF
+import tempfile
 
 # =========================================================
 # 1. FUNÇÃO ADMISSÍVEL ASME (VON MISES / FADIGA)
