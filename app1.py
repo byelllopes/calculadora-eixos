@@ -93,5 +93,63 @@ if st.button("Calcular e Gerar Relatório", type="primary"):
         st.write(f"Reação em Y (RAy): `{R_Ay:.2f} lb`")
     with col_C:
         st.write("**Mancal C (Apoio, z = 20 pol):**")
-     st.write(f"Reação em X (RCx): `{R_Cx:.2f} lb`")
-    st.write(f"Reação em Y (RCy): `{R_Cy:.2f} lb`")
+        st.write(f"Reação em X (RCx): `{R_Cx:.2f} lb`")
+        st.write(f"Reação em Y (RCy): `{R_Cy:.2f} lb`")
+
+    # =========================================================
+    # 5. GERADOR DINÂMICO DE GRÁFICOS (Plano XZ)
+    # =========================================================
+    st.markdown("---")
+    st.subheader("📊 Diagramas de Esforços Internos (Plano XZ)")
+    
+    # Vetor de discretização do comprimento do eixo (de 0 a 26 polegadas)
+    z_vals = np.linspace(0, 26.0, 1000)
+    
+    # Cálculo usando Funções de Singularidade (Macaulay)
+    # O Cortante soma as cargas pontuais. O Fletor integra (Força * braço de alavanca)
+    V_x = np.zeros_like(z_vals)
+    M_y = np.zeros_like(z_vals)
+    
+    # 1. Contribuição do Mancal A (z=0)
+    V_x += R_Ax * (z_vals >= 0)
+    M_y += R_Ax * (z_vals - 0) * (z_vals >= 0)
+    
+    # 2. Contribuição da Engrenagem B (z=10)
+    V_x += F_tB * (z_vals >= 10)
+    M_y += F_tB * (z_vals - 10) * (z_vals >= 10)
+    
+    # 3. Contribuição do Mancal C (z=20)
+    V_x += R_Cx * (z_vals >= 20)
+    M_y += R_Cx * (z_vals - 20) * (z_vals >= 20)
+    
+    # Criando a figura do Matplotlib
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+    
+    # Gráfico 1: Cortante
+    ax1.plot(z_vals, V_x, color='blue', drawstyle='steps-post')
+    ax1.fill_between(z_vals, V_x, step="post", alpha=0.2, color='blue')
+    ax1.axhline(0, color='black', linewidth=1)
+    ax1.set_ylabel("Força Cortante Vx (lb)")
+    ax1.set_title("Diagrama de Esforço Cortante (V)")
+    ax1.grid(True, linestyle='--', alpha=0.6)
+    
+    # Gráfico 2: Fletor
+    ax2.plot(z_vals, M_y, color='red')
+    ax2.fill_between(z_vals, M_y, alpha=0.2, color='red')
+    ax2.axhline(0, color='black', linewidth=1)
+    ax2.set_xlabel("Comprimento do Eixo - Eixo Z (pol)")
+    ax2.set_ylabel("Momento Fletor My (lb.pol)")
+    ax2.set_title("Diagrama de Momento Fletor (M)")
+    ax2.grid(True, linestyle='--', alpha=0.6)
+    
+    # Marcadores de posição dos componentes
+    for ax in [ax1, ax2]:
+        ax.axvline(10, color='gray', linestyle=':', label='Engrenagem B')
+        ax.axvline(20, color='green', linestyle=':', label='Mancal C')
+        ax.axvline(26, color='orange', linestyle=':', label='Polia D')
+    
+    # Legenda apenas no gráfico de baixo para não poluir
+    ax2.legend(loc='upper right')
+    
+    plt.tight_layout()
+    st.pyplot(fig)
