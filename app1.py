@@ -143,81 +143,104 @@ def motor_ex4(n):
     return z, Vx, Vy, My, Mx, T_mesh, z_pontos, nomes, kt_list
 
 # =========================================================
-# 3. GERADOR DO SUPER PDF (TEORIA + CÓDIGO + CÁLCULOS)
+# 3. GERADOR DO SUPER PDF (MÚLTIPLOS EXERCÍCIOS)
 # =========================================================
-def gerar_relatorio_integrado(exercicio, material, df_tabela, fig):
+def gerar_relatorio_lote(lista_exercicios, material, Se, Sy, ns):
     pdf = FPDF()
-    pdf.add_page()
     
-    # --- CABEÇALHO ---
+    # --- CAPA GERAL ---
+    pdf.add_page()
     pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, f"LAUDO DE PROJETO DE EIXOS - UESC", ln=True, align='C')
+    pdf.cell(0, 10, "LAUDO DE PROJETO DE EIXOS EM LOTE - UESC", ln=True, align='C')
     pdf.set_font("Arial", 'I', 11)
-    pdf.cell(0, 6, f"Disciplina: CET 948 - Elementos de Maquinas I | Prof. Dr. Jose Carlos de Camargo", ln=True, align='C')
-    pdf.cell(0, 6, f"Referencia: Lista 02 - {exercicio} | Material Base: {material}", ln=True, align='C')
-    pdf.ln(5)
+    pdf.cell(0, 6, "Disciplina: CET 948 - Elementos de Maquinas I | Prof. Dr. Jose Carlos de Camargo", ln=True, align='C')
+    pdf.cell(0, 6, f"Material Base para Calculos: {material}", ln=True, align='C')
+    pdf.ln(10)
     
-    # --- 1. FUNDAMENTAÇÃO TEÓRICA ---
+    # --- FUNDAMENTAÇÃO GERAL ---
     pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 8, "1. Fundamentacao Teorica Aplicada", ln=True)
+    pdf.cell(0, 8, "1. Metodologia Computacional e Analitica", ln=True)
     pdf.set_font("Arial", '', 10)
-    teoria = (
-        f"A resolucao do {exercicio} baseia-se nos conceitos abordados nos slides da disciplina. "
-        "O dimensionamento do eixo a fadiga foi realizado utilizando a equacao ASME (baseada na "
-        "teoria da Energia de Distorcao / Von Mises) para compor os estados de flexo-torcao.\n\n"
-        "A cinematica das engrenagens e polias foi decomposta vetorialmente. Para as engrenagens de "
-        "dentes retos, utilizou-se o angulo de pressao padrao de 20 graus (que afasta os eixos e gera a forca radial). "
-        "Conforme exigido pelo professor, a analise considera diametros escalonados atraves dos Fatores "
-        "de Concentracao de Tensao (Kt), aplicando Kt = 2.5 para ressaltos de rolamentos e Kt = 2.0 para "
-        "rasgos de chaveta nas engrenagens/polias."
+    teoria_geral = (
+        "Este laudo compila a resolucao da Lista 02. O codigo fonte resolve os problemas determinando "
+        "inicialmente o equilibrio estatico para encontrar as reacoes nos apoios. A biblioteca Numpy "
+        "emprega Funcoes de Singularidade (Macaulay) para discretizar o eixo e computar os diagramas "
+        "de Cortante e Fletor. Os diametros escalonados foram calculados via equacao ASME, aplicando "
+        "concentracao de tensao (Kt) de 2.5 para rolamentos e 2.0 para chavetas, conforme os slides da disciplina."
     )
-    pdf.multi_cell(0, 5, teoria)
-    pdf.ln(5)
-
-    # --- 2. METODOLOGIA DO CÓDIGO ---
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 8, "2. Metodologia Computacional", ln=True)
-    pdf.set_font("Arial", '', 10)
-    metodologia = (
-        "O script resolve inicialmente o equilibrio estatico para determinar as reacoes nos mancais. "
-        "Em seguida, utilizando a biblioteca Numpy, o eixo e discretizado em 1000 pontos. Funcoes "
-        "de Macaulay sao aplicadas para gerar as funcoes continuas de Esforco Cortante (V), "
-        "Momento Fletor (M) e Torque (T) nos planos vertical e horizontal. O algoritmo varre esses arrays "
-        "para identificar a combinacao critica exata em cada estacao do eixo."
-    )
-    pdf.multi_cell(0, 5, metodologia)
-    pdf.ln(5)
-
-    # --- 3. RESULTADOS E TABELA ---
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 8, "3. Analise de Diametros Escalonados (Ponto a Ponto)", ln=True)
-    pdf.set_font("Arial", 'B', 9)
-    cols = [30, 15, 15, 30, 30, 30, 30]
-    headers = ["Elemento", "Z", "Kt", "Momento M", "Torque T", "Cortante V", "D_min (pol)"]
-    for i in range(len(cols)):
-        pdf.cell(cols[i], 10, headers[i], border=1, align='C')
-    pdf.ln()
+    pdf.multi_cell(0, 5, teoria_geral)
     
-    pdf.set_font("Arial", '', 9)
-    for i in range(len(df_tabela)):
-        pdf.cell(cols[0], 10, str(df_tabela.iloc[i, 0]), border=1, align='C')
-        pdf.cell(cols[1], 10, str(df_tabela.iloc[i, 1]), border=1, align='C')
-        pdf.cell(cols[2], 10, str(df_tabela.iloc[i, 2]), border=1, align='C')
-        pdf.cell(cols[3], 10, f"{df_tabela.iloc[i, 3]:.1f}", border=1, align='C')
-        pdf.cell(cols[4], 10, f"{df_tabela.iloc[i, 4]:.1f}", border=1, align='C')
-        pdf.cell(cols[5], 10, f"{df_tabela.iloc[i, 5]:.1f}", border=1, align='C')
+    # --- LOOP PELOS EXERCÍCIOS SELECIONADOS ---
+    for ex in lista_exercicios:
+        pdf.add_page()
+        pdf.set_font("Arial", 'B', 14)
+        pdf.cell(0, 10, f"MEMORIA DE CALCULO - {ex.upper()}", ln=True, align='C')
+        pdf.ln(2)
+        
+        # Teoria Específica por Questão
+        pdf.set_font("Arial", 'I', 10)
+        if ex in ["Exercício 1", "Exercício 2"]:
+            texto_especifico = (
+                "Comentario Teorico: Neste cenario, a engrenagem de dentes retos sofre acao de forcas "
+                "tangenciais e radiais (angulo de pressao 20 graus). A polia D transmite tracao atraves "
+                "de correias tensionadas num angulo de 40 graus com a horizontal, gerando componentes "
+                "nos eixos X e Y."
+            )
+            z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list = motor_ex1_2(550 if ex == "Exercício 1" else 750, 30.0 if ex == "Exercício 1" else 20.0, 96 if ex == "Exercício 1" else 100, 6.0, 10.0 if ex == "Exercício 1" else 9.0)
+        elif ex == "Exercício 3":
+            texto_especifico = (
+                "Comentario Teorico: Conforme a teoria de transmissoes flexiveis, a corrente dentada (D) "
+                "difere das polias, pois assume-se forca nula no lado frouxo, transmitindo tracao pura "
+                "no lado tenso. A polia plana atua no eixo vertical descendente."
+            )
+            z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list = motor_ex3(200, 10.0, 6.0, 4.0)
+        else: # Ex 4
+            texto_especifico = (
+                "Comentario Teorico: Problema de elevada complexidade com decomposicao vetorial 3D. "
+                "A corrente C puxa a 15 graus da vertical e a polia E traciona a 30 graus da horizontal, "
+                "exigindo projecao rigorosa com senos e cossenos para compor o equilibrio em todos os planos."
+            )
+            z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list = motor_ex4(480)
+            
+        pdf.multi_cell(0, 5, texto_especifico)
+        pdf.ln(5)
+        
+        # Tabelas
+        df_tabela = gerar_tabela_pontos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, Se, Sy, ns)
+        
+        pdf.set_font("Arial", 'B', 11)
+        pdf.cell(0, 8, "Tabela de Diametros do Eixo", ln=True)
         pdf.set_font("Arial", 'B', 9)
-        pdf.cell(cols[6], 10, f"{df_tabela.iloc[i, 6]:.3f}", border=1, align='C')
-        pdf.set_font("Arial", '', 9)
+        cols = [30, 15, 15, 30, 30, 30, 30]
+        headers = ["Elemento", "Z", "Kt", "Momento M", "Torque T", "Cortante V", "D_min (pol)"]
+        for i in range(len(cols)):
+            pdf.cell(cols[i], 8, headers[i], border=1, align='C')
         pdf.ln()
-    
-    # --- 4. GRÁFICOS ---
-    pdf.add_page()
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, "4. Diagramas de Esforcos Solicitantes", ln=True)
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
-        fig.savefig(tmp.name, format="png", bbox_inches="tight")
-        pdf.image(tmp.name, x=10, y=pdf.get_y(), w=190)
+        
+        pdf.set_font("Arial", '', 9)
+        for i in range(len(df_tabela)):
+            pdf.cell(cols[0], 8, str(df_tabela.iloc[i, 0]), border=1, align='C')
+            pdf.cell(cols[1], 8, str(df_tabela.iloc[i, 1]), border=1, align='C')
+            pdf.cell(cols[2], 8, str(df_tabela.iloc[i, 2]), border=1, align='C')
+            pdf.cell(cols[3], 8, f"{df_tabela.iloc[i, 3]:.1f}", border=1, align='C')
+            pdf.cell(cols[4], 8, f"{df_tabela.iloc[i, 4]:.1f}", border=1, align='C')
+            pdf.cell(cols[5], 8, f"{df_tabela.iloc[i, 5]:.1f}", border=1, align='C')
+            pdf.set_font("Arial", 'B', 9)
+            pdf.cell(cols[6], 8, f"{df_tabela.iloc[i, 6]:.3f}", border=1, align='C')
+            pdf.set_font("Arial", '', 9)
+            pdf.ln()
+        
+        pdf.ln(5)
+        
+        # Gráficos
+        pdf.set_font("Arial", 'B', 11)
+        pdf.cell(0, 8, "Diagramas de Esforcos Solicitantes", ln=True)
+        fig = plotar_diagramas_completos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes)
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+            fig.savefig(tmp.name, format="png", bbox_inches="tight")
+            pdf.image(tmp.name, x=10, y=pdf.get_y(), w=190)
+        
+        plt.close(fig) # Limpa o gráfico da memória para não travar o Streamlit
 
     return pdf.output(dest="S").encode("latin-1", errors="replace")
 
@@ -234,11 +257,11 @@ menu = st.sidebar.selectbox("Navegação:", [
     "Visualizar Exercício 2", 
     "Visualizar Exercício 3", 
     "Visualizar Exercício 4", 
-    "📄 Gerar Relatório Completo"
+    "📄 Gerar Relatório (PDF)"
 ])
 
 # =========================================================
-# INTERFACES DE VISUALIZAÇÃO (Sem botões de download)
+# INTERFACES DE VISUALIZAÇÃO
 # =========================================================
 if menu in ["Visualizar Exercício 1", "Visualizar Exercício 2"]:
     st.title(f"⚙️ Análise Dinâmica - {menu.split()[-2]} {menu.split()[-1]}")
@@ -259,55 +282,4 @@ elif menu == "Visualizar Exercício 3":
         z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list = motor_ex3(n, 10.0, 6.0, 4.0)
         df_tab = gerar_tabela_pontos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, 30000, 60000, 2.0)
         st.dataframe(df_tab.style.format({"Momento M": "{:.1f}", "Torque T": "{:.1f}", "Cortante V": "{:.1f}", "D_min": "{:.3f}"}), use_container_width=True)
-        st.pyplot(plotar_diagramas_completos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes))
-
-elif menu == "Visualizar Exercício 4":
-    st.title("⚙️ Análise Dinâmica - Exercício 4")
-    n = st.sidebar.number_input("Rotação (RPM)", value=480)
-    
-    if st.button("Calcular Esforços"):
-        z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list = motor_ex4(n)
-        df_tab = gerar_tabela_pontos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, 30000, 60000, 2.0)
-        st.dataframe(df_tab.style.format({"Momento M": "{:.1f}", "Torque T": "{:.1f}", "Cortante V": "{:.1f}", "D_min": "{:.3f}"}), use_container_width=True)
-        st.pyplot(plotar_diagramas_completos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes))
-
-# =========================================================
-# INTERFACE UNIFICADA DO LAUDO/RELATÓRIO
-# =========================================================
-elif menu == "📄 Gerar Relatório Completo":
-    st.title("📄 Central de Relatórios e Laudos")
-    st.markdown("Interface dedicada à compilação da fundamentação teórica (baseada na disciplina CET 948), explicação metodológica do código e memórias de cálculo.")
-    
-    ex_escolhido = st.selectbox("Selecione qual exercício deseja processar e anexar ao Laudo:", 
-                                ["Exercício 1", "Exercício 2", "Exercício 3", "Exercício 4"])
-    
-    material = st.text_input("Especifique o material (para o cabeçalho do laudo):", "Aço SAE 1040")
-    Sy = st.number_input("Limite de Escoamento - Sy (psi)", value=60000)
-    Se = st.number_input("Limite de Fadiga - Se (psi)", value=30000)
-    ns = st.number_input("Fator de Segurança (ns)", value=2.0)
-    
-    if st.button("Compilar Documento (PDF)", type="primary"):
-        # Direciona para o motor de cálculo correto silenciosamente
-        if ex_escolhido == "Exercício 1":
-            z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list = motor_ex1_2(550, 30.0, 96, 6.0, 10.0)
-        elif ex_escolhido == "Exercício 2":
-            z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list = motor_ex1_2(750, 20.0, 100, 6.0, 9.0)
-        elif ex_escolhido == "Exercício 3":
-            z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list = motor_ex3(200, 10.0, 6.0, 4.0)
-        else:
-            z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list = motor_ex4(480)
-            
-        # Gera os dados visuais
-        df_tabela = gerar_tabela_pontos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, Se, Sy, ns)
-        fig = plotar_diagramas_completos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes)
-        
-        # Constrói o Super PDF
-        pdf_bytes = gerar_relatorio_integrado(ex_escolhido, material, df_tabela, fig)
-        
-        st.success("Documento gerado com sucesso! Contém citações teóricas do material didático, explicações do algoritmo e diagramas.")
-        st.download_button(
-            label="📥 Baixar Laudo de Engenharia (PDF)",
-            data=pdf_bytes,
-            file_name=f"Laudo_CET948_{ex_escolhido.replace(' ', '')}.pdf",
-            mime="application/pdf"
-        )
+        st.pyplot(plotar_diagramas_completos(z, Vx, Vy, My, Mx,
