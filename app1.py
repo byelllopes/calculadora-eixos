@@ -173,27 +173,27 @@ def gerar_relatorio_lote(lista_exercicios, ns):
     else:
         pdf.ln(45)
         
-    pdf.set_font("Arial", 'B', 12)
+    pdf.set_font("Times", 'B', 12) # Fonte alterada para Times
     pdf.cell(0, 6, clean_text("UNIVERSIDADE ESTADUAL DE SANTA CRUZ - UESC"), ln=True, align='C')
     pdf.cell(0, 6, clean_text("DEPARTAMENTO DE ENGENHARIAS E COMPUTAÇÃO - DEC"), ln=True, align='C')
     pdf.cell(0, 6, clean_text("CURSO DE ENGENHARIA MECÂNICA"), ln=True, align='C')
     
     pdf.ln(60)
-    pdf.set_font("Arial", 'B', 16)
+    pdf.set_font("Times", 'B', 16)
     pdf.cell(0, 8, clean_text("PROJETO DE EIXOS E CHAVETAS"), ln=True, align='C')
-    pdf.set_font("Arial", 'B', 14)
+    pdf.set_font("Times", 'B', 14)
     pdf.cell(0, 8, clean_text("Resolução Detalhada da Lista de Exercícios 02"), ln=True, align='C')
     
     pdf.set_y(-50)
-    pdf.set_font("Arial", 'B', 12)
+    pdf.set_font("Times", 'B', 12)
     pdf.cell(0, 6, clean_text("Ilhéus - BA"), ln=True, align='C')
     pdf.cell(0, 6, clean_text("2026"), ln=True, align='C')
 
     # ================= FOLHA DE ROSTO (PÁGINA 2) =================
     pdf.add_page()
-    pdf.set_font("Arial", 'B', 11)
+    pdf.set_font("Times", 'B', 11)
     
-    # Membros da Equipe (Impresso linha por linha para garantir alinhamento à direita sem cortar)
+    # Membros da Equipe
     pdf.set_y(40)
     equipe = [
         "Cauê Oliveira Viana (202110921)",
@@ -210,22 +210,21 @@ def gerar_relatorio_lote(lista_exercicios, ns):
         pdf.cell(0, 6, clean_text(membro), ln=True, align='R')
     
     pdf.ln(40)
-    pdf.set_font("Arial", 'B', 14)
+    pdf.set_font("Times", 'B', 14)
     pdf.cell(0, 8, clean_text("LISTA DE EXERCÍCIO --- Eixos e Chavetas:"), ln=True, align='C')
     pdf.cell(0, 8, clean_text("Equivalente ao 2º crédito --- 2026.1"), ln=True, align='C')
     
     pdf.ln(30)
-    pdf.set_font("Arial", '', 11)
+    pdf.set_font("Times", '', 11)
     
-    # Justificativa estruturada com margem provisória para simular bloco à direita
     margem_original = pdf.l_margin
     pdf.set_left_margin(90)
     justificativa = "Trabalho apresentado como critério de avaliação do 2º crédito da disciplina CET548 -- Elementos de Máquinas I.\n\nTurma T02. Dia da entrega do crédito: 27/06/2026."
     pdf.multi_cell(0, 6, clean_text(justificativa), align='J')
-    pdf.set_left_margin(margem_original) # Retorna a margem padrão para o restante do documento
+    pdf.set_left_margin(margem_original)
     
     pdf.ln(20)
-    pdf.set_font("Arial", 'B', 12)
+    pdf.set_font("Times", 'B', 12)
     pdf.cell(0, 6, clean_text("Professor: José Carlos de Camargo"), ln=True, align='C')
     
     pdf.set_y(-50)
@@ -234,9 +233,9 @@ def gerar_relatorio_lote(lista_exercicios, ns):
 
     # ================= INTRODUÇÃO GERAL (PÁGINA 3) =================
     pdf.add_page()
-    pdf.set_font("Arial", 'B', 14)
+    pdf.set_font("Times", 'B', 14)
     pdf.cell(0, 10, clean_text("Introdução Geral de Projeto"), ln=True)
-    pdf.set_font("Arial", '', 11)
+    pdf.set_font("Times", '', 11)
     intro = "Para todos os problemas de eixos rotativos sujeitos a carregamentos combinados de flexão e torção cíclica, adota-se a formulação da norma ASME/Von Mises para fadiga. O dimensionamento escala os diâmetros (D1, D2...) com base nos fatores de concentração de tensão (Kt)."
     pdf.multi_cell(0, 6, clean_text(intro))
     pdf.ln(10)
@@ -246,11 +245,11 @@ def gerar_relatorio_lote(lista_exercicios, ns):
         mat_info = DADOS_MATERIAIS[ex]
         
         pdf.add_page()
-        pdf.set_font("Arial", 'B', 14)
+        pdf.set_font("Times", 'B', 14)
         pdf.cell(0, 10, clean_text(f"Resolução do {ex}"), ln=True)
-        pdf.set_font("Arial", 'B', 12)
+        pdf.set_font("Times", 'B', 12)
         pdf.cell(0, 8, clean_text("1. Torques e Forças nos Elementos"), ln=True)
-        pdf.set_font("Arial", '', 11)
+        pdf.set_font("Times", '', 11)
         
         if ex in ["Exercício 1", "Exercício 2"]:
             n, P = (550, 30.0) if ex == "Exercício 1" else (750, 20.0)
@@ -293,16 +292,16 @@ def gerar_relatorio_lote(lista_exercicios, ns):
         # Tabelas
         df_tabela = gerar_tabela_pontos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, mat_info["Se"], mat_info["Sy"], ns)
         pdf.ln(5)
-        pdf.set_font("Arial", 'B', 12)
+        pdf.set_font("Times", 'B', 12)
         pdf.cell(0, 8, clean_text("3. Tabela de Diâmetros e Dimensionamento (Análise Crítica)"), ln=True)
-        pdf.set_font("Arial", 'B', 8)
+        pdf.set_font("Times", 'B', 8)
         cols = [25, 12, 10, 25, 25, 25, 30]
         headers = ["Elemento", "Z", "Kt", "Momento M", "Torque T", "Cortante V", "D_min (pol)"]
         for i in range(len(cols)):
             pdf.cell(cols[i], 8, headers[i], border=1, align='C')
         pdf.ln()
         
-        pdf.set_font("Arial", '', 8)
+        pdf.set_font("Times", '', 8)
         for i in range(len(df_tabela)):
             pdf.cell(cols[0], 8, clean_text(str(df_tabela.iloc[i, 0])), border=1, align='C')
             pdf.cell(cols[1], 8, str(df_tabela.iloc[i, 1]), border=1, align='C')
@@ -310,30 +309,31 @@ def gerar_relatorio_lote(lista_exercicios, ns):
             pdf.cell(cols[3], 8, f"{df_tabela.iloc[i, 3]:.1f}", border=1, align='C')
             pdf.cell(cols[4], 8, f"{df_tabela.iloc[i, 4]:.1f}", border=1, align='C')
             pdf.cell(cols[5], 8, f"{df_tabela.iloc[i, 5]:.1f}", border=1, align='C')
-            pdf.set_font("Arial", 'B', 8)
+            pdf.set_font("Times", 'B', 8)
             pdf.cell(cols[6], 8, f"{df_tabela.iloc[i, 6]:.3f}", border=1, align='C')
-            pdf.set_font("Arial", '', 8)
+            pdf.set_font("Times", '', 8)
             pdf.ln()
         
         # Conclusões Específicas do LaTeX (Comerciais)
         if ex == "Exercício 3":
             pdf.ln(3)
-            pdf.set_font("Arial", 'I', 10)
+            pdf.set_font("Times", 'I', 10)
             pdf.cell(0, 6, clean_text(">> Recomenda-se diâmetro nominal comercial bruto de 1 5/8 pol para a seção central."), ln=True)
         elif ex == "Exercício 4":
             pdf.ln(3)
-            pdf.set_font("Arial", 'I', 10)
+            pdf.set_font("Times", 'I', 10)
             pdf.cell(0, 6, clean_text(">> Incorporando restrições de anéis de retenção, estabelece-se diâmetro bruto de 1 1/4 pol."), ln=True)
             
-        pdf.ln(5)
-        
-        # Gráficos
-        pdf.set_font("Arial", 'B', 12)
+        # ==================== GRÁFICOS (QUEBRA DE PÁGINA APLICADA) ====================
+        pdf.add_page() # <-- ESTA LINHA RESOLVE O PROBLEMA DO CORTE NO GRÁFICO!
+        pdf.set_font("Times", 'B', 12)
         pdf.cell(0, 8, clean_text("4. Diagramas de Esforços Solicitantes"), ln=True)
+        
         fig = plotar_diagramas_completos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes)
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
             fig.savefig(tmp.name, format="png", bbox_inches="tight")
-            pdf.image(tmp.name, x=20, y=pdf.get_y(), w=170)
+            # A imagem agora tem a página inteira para ela, sem risco de encostar no rodapé
+            pdf.image(tmp.name, x=20, y=pdf.get_y() + 5, w=170) 
         plt.close(fig)
 
     return pdf.output(dest="S").encode("latin-1", errors="replace")
