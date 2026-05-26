@@ -75,7 +75,7 @@ def plotar_diagramas_completos(z, Vx, Vy, My, Mx, T_mesh, z_pontos, nomes):
     return fig
 
 # =========================================================
-# 2. MOTORES DE RESOLUÇÃO (Agora exportam a Memória de Cálculo)
+# 2. MOTORES DE RESOLUÇÃO
 # =========================================================
 def motor_ex1_2(n, P, Z_dentes, Pd, D_polia):
     T = (P * 63025) / n
@@ -193,10 +193,21 @@ def gerar_relatorio_lote(lista_exercicios, ns):
     pdf.add_page()
     pdf.set_font("Arial", 'B', 11)
     
-    # Membros da Equipe (Alinhado à direita)
-    pdf.set_xy(90, 40)
-    equipe = "Cauê Oliveira Viana (202110921)\nDavi Lisboa da Silva Almeida (202110922)\nIago Campos de Melo (202311585)\nJoão Gabryell Lopes Santana (202110926)\nJoão Felipe Santos Matos (202110921)\nKaike Santos dos Santos (202111309)"
-    pdf.multi_cell(0, 6, clean_text(equipe), align='R')
+    # Membros da Equipe (Impresso linha por linha para garantir alinhamento à direita sem cortar)
+    pdf.set_y(40)
+    equipe = [
+        "Cauê Oliveira Viana (202110921)",
+        "Claudio Avila Rosa Filho (202310661)",
+        "Davi Lisboa da Silva Almeida (202110922)",
+        "Iago Campos de Melo (202311585)",
+        "João Gabryell Lopes Santana (202110926)",
+        "João Felipe Santos Matos (202110921)",
+        "Kaike Santos dos Santos (202111309)",
+        "Pedro Enrique Nascimento Santos (202211370)",
+        "Tharcizio Rubens Santos Mota (202211373)"
+    ]
+    for membro in equipe:
+        pdf.cell(0, 6, clean_text(membro), ln=True, align='R')
     
     pdf.ln(40)
     pdf.set_font("Arial", 'B', 14)
@@ -205,9 +216,13 @@ def gerar_relatorio_lote(lista_exercicios, ns):
     
     pdf.ln(30)
     pdf.set_font("Arial", '', 11)
-    pdf.set_x(90)
+    
+    # Justificativa estruturada com margem provisória para simular bloco à direita
+    margem_original = pdf.l_margin
+    pdf.set_left_margin(90)
     justificativa = "Trabalho apresentado como critério de avaliação do 2º crédito da disciplina CET548 -- Elementos de Máquinas I.\n\nTurma T02. Dia da entrega do crédito: 27/06/2026."
     pdf.multi_cell(0, 6, clean_text(justificativa), align='J')
+    pdf.set_left_margin(margem_original) # Retorna a margem padrão para o restante do documento
     
     pdf.ln(20)
     pdf.set_font("Arial", 'B', 12)
