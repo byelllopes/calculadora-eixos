@@ -282,4 +282,48 @@ elif menu == "Visualizar Exercício 3":
         z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list = motor_ex3(n, 10.0, 6.0, 4.0)
         df_tab = gerar_tabela_pontos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, 30000, 60000, 2.0)
         st.dataframe(df_tab.style.format({"Momento M": "{:.1f}", "Torque T": "{:.1f}", "Cortante V": "{:.1f}", "D_min": "{:.3f}"}), use_container_width=True)
-        st.pyplot(plotar_diagramas_completos(z, Vx, Vy, My, Mx,
+        st.pyplot(plotar_diagramas_completos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes))
+
+elif menu == "Visualizar Exercício 4":
+    st.title("⚙️ Análise Dinâmica - Exercício 4")
+    n = st.sidebar.number_input("Rotação (RPM)", value=480)
+    
+    if st.button("Calcular Esforços"):
+        z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list = motor_ex4(n)
+        df_tab = gerar_tabela_pontos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, 30000, 60000, 2.0)
+        st.dataframe(df_tab.style.format({"Momento M": "{:.1f}", "Torque T": "{:.1f}", "Cortante V": "{:.1f}", "D_min": "{:.3f}"}), use_container_width=True)
+        st.pyplot(plotar_diagramas_completos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes))
+
+# =========================================================
+# INTERFACE UNIFICADA DO LAUDO/RELATÓRIO
+# =========================================================
+elif menu == "📄 Gerar Relatório (PDF)":
+    st.title("📄 Central de Geração de Relatórios em Lote")
+    st.markdown("Marque nas opções abaixo todos os exercícios que deseja incluir em um único documento PDF.")
+    
+    # NOVA SEÇÃO: Caixas de Seleção Múltiplas
+    exercicios_selecionados = st.multiselect(
+        "Selecione os exercícios para o laudo:", 
+        ["Exercício 1", "Exercício 2", "Exercício 3", "Exercício 4"],
+        default=["Exercício 1", "Exercício 2", "Exercício 3", "Exercício 4"] # Já vem tudo marcado
+    )
+    
+    material = st.text_input("Especifique o material:", "Aço SAE 1040")
+    Sy = st.number_input("Limite de Escoamento - Sy (psi)", value=60000)
+    Se = st.number_input("Limite de Fadiga - Se (psi)", value=30000)
+    ns = st.number_input("Fator de Segurança (ns)", value=2.0)
+    
+    if st.button("Compilar Documento Unificado", type="primary"):
+        if not exercicios_selecionados:
+            st.warning("Selecione pelo menos um exercício para gerar o PDF!")
+        else:
+            with st.spinner("Gerando gráficos e compilando PDF... Isso pode levar alguns segundos."):
+                pdf_bytes = gerar_relatorio_lote(exercicios_selecionados, material, Se, Sy, ns)
+                
+            st.success("Documento gerado com sucesso!")
+            st.download_button(
+                label="📥 Baixar Laudo Completo (PDF)",
+                data=pdf_bytes,
+                file_name=f"Laudo_UESC_Lote.pdf",
+                mime="application/pdf"
+            )
