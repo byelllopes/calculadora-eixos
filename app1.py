@@ -164,8 +164,15 @@ DADOS_MATERIAIS = {
 def clean_text(text):
     return text.encode('latin-1', 'replace').decode('latin-1')
 
+def nota_didatica(pdf, texto):
+    pdf.ln(2)
+    pdf.set_font("Times", 'I', 11)
+    pdf.set_text_color(80, 80, 80)
+    pdf.multi_cell(0, 5, clean_text(f"Nota Didática: {texto}"))
+    pdf.set_text_color(0, 0, 0)
+    pdf.ln(3)
+
 def equacao(pdf, eq_literal, eq_numeros):
-    """Imprime as equações centralizadas imitando os cálculos armados manuais."""
     pdf.set_font("Times", 'I', 12)
     pdf.cell(0, 6, clean_text(eq_literal), ln=True, align='C')
     pdf.set_font("Times", 'B', 12)
@@ -176,7 +183,7 @@ def gerar_relatorio_lote(lista_exercicios, ns):
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.set_margins(30, 25, 20)
     
-    # ================= CAPA (PÁGINA 1) =================
+    # ================= CAPA =================
     pdf.add_page()
     if os.path.exists("logo_uesc.png"):
         pdf.image("logo_uesc.png", x=92.5, y=25, w=25)
@@ -200,7 +207,7 @@ def gerar_relatorio_lote(lista_exercicios, ns):
     pdf.cell(0, 6, clean_text("Ilhéus - BA"), ln=True, align='C')
     pdf.cell(0, 6, clean_text("2026"), ln=True, align='C')
 
-    # ================= FOLHA DE ROSTO (PÁGINA 2) =================
+    # ================= FOLHA DE ROSTO =================
     pdf.add_page()
     pdf.set_y(40)
     pdf.set_left_margin(90)
@@ -239,14 +246,30 @@ def gerar_relatorio_lote(lista_exercicios, ns):
     pdf.cell(0, 6, clean_text("Ilhéus - BA"), ln=True, align='C')
     pdf.cell(0, 6, clean_text("2026"), ln=True, align='C')
     
-    # ================= INTRODUÇÃO GERAL E COMPLEMENTOS (PÁGINA 3) =================
+    # ================= INTRODUÇÃO =================
     pdf.add_page()
     pdf.set_font("Times", 'B', 16)
     pdf.cell(0, 10, clean_text("Introdução e Complementos Técnicos"), ln=True)
     pdf.set_font("Times", '', 12)
-    intro = "Para todos os problemas de eixos rotativos sujeitos a carregamentos combinados de flexão e torção cíclica, adota-se a formulação da norma ASME/Von Mises para fadiga:\n\nd = [ (32 * ns / pi) * sqrt( (M_max / Se)^2 + 0.75 * (T / Sy)^2 ) ]^(1/3)\n\n"
-    intro += "A seguir, são descritos os conceitos e complementos técnicos que fundamentam as memórias de cálculo deste laudo:\n"
+    intro = "Para todos os problemas de eixos rotativos sujeitos a carregamentos combinados de flexão e torção cíclica, adota-se a formulação da norma ASME/Von Mises para fadiga:\n"
     pdf.multi_cell(0, 6, clean_text(intro))
+    pdf.ln(2)
+
+    # Imagem da fórmula ASME
+    if os.path.exists("formula_asme.png"):
+        y_atual = pdf.get_y()
+        pdf.image("formula_asme.png", x=55, y=y_atual, w=100) 
+        pdf.set_y(y_atual + 25) 
+    else:
+        pdf.ln(5)
+        pdf.set_font("Times", 'I', 10)
+        pdf.cell(0, 6, clean_text("[Para exibir a equação aqui, salve o arquivo como 'formula_asme.png' na mesma pasta]"), ln=True, align='C')
+        pdf.ln(5)
+
+    pdf.set_font("Times", '', 12)
+    intro2 = "O dimensionamento escala os diâmetros mínimos de forma individual para cada elemento (D1, D2, D3...) com base nos fatores de concentração de tensão (Kt).\n\n"
+    intro2 += "A seguir, são descritos os conceitos e complementos técnicos que fundamentam as memórias de cálculo deste laudo:\n"
+    pdf.multi_cell(0, 6, clean_text(intro2))
     pdf.ln(4)
 
     fundamentos = [
@@ -264,7 +287,7 @@ def gerar_relatorio_lote(lista_exercicios, ns):
 
     for titulo, desc in fundamentos:
         pdf.set_font("Times", 'B', 12)
-        pdf.cell(0, 6, clean_text(f"• {titulo}:"), ln=True)
+        pdf.cell(0, 6, clean_text(f"- {titulo}:"), ln=True)
         pdf.set_font("Times", '', 12)
         pdf.multi_cell(0, 6, clean_text(desc))
         pdf.ln(1)
@@ -284,27 +307,24 @@ def gerar_relatorio_lote(lista_exercicios, ns):
             n, P = (550, 30.0) if ex == "Exercício 1" else (750, 20.0)
             z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, dc = motor_ex1_2(n, P, 96, 6.0, 10.0 if ex == "Exercício 1" else 9.0)
             
-            # PASSO 1
             pdf.set_font("Times", 'B', 12)
             pdf.cell(0, 8, clean_text("Passo 1 - Torque transmitido"), ln=True)
             pdf.set_font("Times", '', 12)
             pdf.cell(0, 6, clean_text(f"Dados: n = {n} rpm, P = {P} hp."), ln=True)
             equacao(pdf, "T = (P * 63025) / n", f"T = ({P} * 63025) / {n} = {dc['T']:.2f} lb.pol")
             
-            # PASSO 2
             pdf.set_font("Times", 'B', 12)
             pdf.cell(0, 8, clean_text("Passo 2 - Forças atuantes nos elementos"), ln=True)
             pdf.set_font("Times", '', 12)
             pdf.cell(0, 6, clean_text(">> Na Engrenagem B (z = 10 pol):"), ln=True)
             equacao(pdf, "F_tB = T / R_B", f"F_tB = {dc['T']:.2f} / 8 = {dc['FtB']:.2f} lb")
-            equacao(pdf, "F_rB = F_tB * tan(20º)", f"F_rB = {dc['FtB']:.2f} * 0.364 = {dc['FrB']:.2f} lb")
+            equacao(pdf, "F_rB = F_tB * tan(20 graus)", f"F_rB = {dc['FtB']:.2f} * 0.364 = {dc['FrB']:.2f} lb")
             
             pdf.cell(0, 6, clean_text(f">> Na Polia D (z = 26 pol, D = {10.0 if ex=='Exercício 1' else 9.0} pol):"), ln=True)
             equacao(pdf, "F_D = 1.5 * (T / R_D)", f"F_D = 1.5 * ({dc['T']:.2f} / {5.0 if ex=='Exercício 1' else 4.5}) = {dc['FD']:.2f} lb")
-            equacao(pdf, "F_Dx = F_D * cos(40º)", f"F_Dx = {dc['FD']:.2f} * 0.766 = {dc['FDx']:.2f} lb")
-            equacao(pdf, "F_Dy = F_D * sin(40º)", f"F_Dy = {dc['FD']:.2f} * 0.642 = {abs(dc['FDy']):.2f} lb")
+            equacao(pdf, "F_Dx = F_D * cos(40 graus)", f"F_Dx = {dc['FD']:.2f} * 0.766 = {dc['FDx']:.2f} lb")
+            equacao(pdf, "F_Dy = F_D * sin(40 graus)", f"F_Dy = {dc['FD']:.2f} * 0.642 = {abs(dc['FDy']):.2f} lb")
             
-            # PASSO 3
             pdf.set_font("Times", 'B', 12)
             pdf.cell(0, 8, clean_text("Passo 3 - Reações nos mancais (Equilíbrio Estático)"), ln=True)
             pdf.set_font("Times", '', 12)
@@ -334,7 +354,7 @@ def gerar_relatorio_lote(lista_exercicios, ns):
             
             pdf.cell(0, 6, clean_text(">> Na Engrenagem C (z = 12 pol):"), ln=True)
             equacao(pdf, "F_tC = T_C / R_C", f"F_tC = {dc['FtC']:.2f} lb (+X)")
-            equacao(pdf, "F_rC = F_tC * tan(20º)", f"F_rC = {dc['FrC']:.2f} lb (+Y)")
+            equacao(pdf, "F_rC = F_tC * tan(20 graus)", f"F_rC = {dc['FrC']:.2f} lb (+Y)")
             
             pdf.cell(0, 6, clean_text(">> Na Corrente D (z = 22 pol):"), ln=True)
             equacao(pdf, "F_D = T_D / R_D", f"F_D = {dc['FD']:.2f} lb (+Y)")
@@ -358,13 +378,13 @@ def gerar_relatorio_lote(lista_exercicios, ns):
             pdf.cell(0, 6, clean_text(">> Pinhão B (z = 4 pol):"), ln=True)
             equacao(pdf, "F_tB = T_B / R_B", f"F_tB = {dc['FtB']:.2f} lb (+X)")
             
-            pdf.cell(0, 6, clean_text(">> Corrente C (z = 10 pol) a 15º da vertical:"), ln=True)
-            equacao(pdf, "F_Cx = -F_C * sin(15º)", f"F_Cx = {dc['FCx']:.2f} lb")
-            equacao(pdf, "F_Cy = -F_C * cos(15º)", f"F_Cy = {dc['FCy']:.2f} lb")
+            pdf.cell(0, 6, clean_text(">> Corrente C (z = 10 pol) a 15 graus da vertical:"), ln=True)
+            equacao(pdf, "F_Cx = -F_C * sin(15 graus)", f"F_Cx = {dc['FCx']:.2f} lb")
+            equacao(pdf, "F_Cy = -F_C * cos(15 graus)", f"F_Cy = {dc['FCy']:.2f} lb")
             
-            pdf.cell(0, 6, clean_text(">> Polia E (z = 20 pol) a 30º da horizontal:"), ln=True)
-            equacao(pdf, "F_Ex = F_E * cos(30º)", f"F_Ex = {dc['FEx']:.2f} lb (+X)")
-            equacao(pdf, "F_Ey = F_E * sin(30º)", f"F_Ey = {dc['FEy']:.2f} lb (+Y)")
+            pdf.cell(0, 6, clean_text(">> Polia E (z = 20 pol) a 30 graus da horizontal:"), ln=True)
+            equacao(pdf, "F_Ex = F_E * cos(30 graus)", f"F_Ex = {dc['FEx']:.2f} lb (+X)")
+            equacao(pdf, "F_Ey = F_E * sin(30 graus)", f"F_Ey = {dc['FEy']:.2f} lb (+Y)")
             
             pdf.set_font("Times", 'B', 12)
             pdf.cell(0, 8, clean_text("Passo 2 - Reações de Apoio (Mancais A e F)"), ln=True)
@@ -404,6 +424,8 @@ def gerar_relatorio_lote(lista_exercicios, ns):
         pdf.cell(0, 6, clean_text(f"Ponto crítico selecionado: {linha_critica['Ponto']} (z = {linha_critica['Z (pol)']} pol)."), ln=True)
         
         equacao(pdf, "M_max = sqrt( M_y^2 + M_x^2 )", f"M_max = {linha_critica['Momento M']:.1f} lb.pol")
+        
+        # Equação ASME sem caracteres difíceis
         equacao(pdf, "d = [ (32*ns/pi) * sqrt( (M_max/Se)^2 + 0.75*(T/Sy)^2 ) ]^(1/3)", f"d = {linha_critica['D_min']:.2f} pol")
 
         pdf.ln(5)
@@ -441,10 +463,10 @@ def gerar_relatorio_lote(lista_exercicios, ns):
     pdf.cell(0, 10, clean_text("Referências Bibliográficas"), ln=True)
     pdf.set_font("Times", '', 12)
     referencias = [
-        "1. SHIGLEY, J. E., MISCHKE, C. R., & BUDYNAS, R. G. (2005). Projeto de Engenharia Mecânica. 7ª Edição. Bookman.",
-        "2. NORTON, R. L. (2013). Projetos de Máquinas: Uma Abordagem Integrada. 4ª Edição. Bookman.",
-        "3. JUVINALL, R. C., & MARSHEK, K. M. (2008). Fundamentos do Projeto de Componentes de Máquinas. 4ª Edição. LTC.",
-        "4. MOTT, R. L. (2015). Elementos de Máquinas em Projetos Mecânicos. 5ª Edição. Pearson.",
+        "1. SHIGLEY, J. E., MISCHKE, C. R., & BUDYNAS, R. G. (2005). Projeto de Engenharia Mecânica. 7a Edição. Bookman.",
+        "2. NORTON, R. L. (2013). Projetos de Máquinas: Uma Abordagem Integrada. 4a Edição. Bookman.",
+        "3. JUVINALL, R. C., & MARSHEK, K. M. (2008). Fundamentos do Projeto de Componentes de Máquinas. 4a Edição. LTC.",
+        "4. MOTT, R. L. (2015). Elementos de Máquinas em Projetos Mecânicos. 5a Edição. Pearson.",
         "5. CAMARGO, J. C. (2026). Material Didático - CET 948: Elementos de Máquinas I. Universidade Estadual de Santa Cruz (UESC)."
     ]
     for ref in referencias:
