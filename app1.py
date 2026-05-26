@@ -145,7 +145,15 @@ def motor_ex4(n):
 # =========================================================
 # 3. GERADOR DO SUPER PDF (MÚLTIPLOS EXERCÍCIOS)
 # =========================================================
-def gerar_relatorio_lote(lista_exercicios, material, Se, Sy, ns):
+# Dicionário interno para o Gerador de Relatório saber as propriedades exatas de cada questão
+DADOS_MATERIAIS = {
+    "Exercício 1": {"nome": "Aço SAE 1040 (Estirado a frio)", "Sy": 60000, "Se": 30000},
+    "Exercício 2": {"nome": "Aço SAE 1040 (Estirado a frio)", "Sy": 60000, "Se": 30000},
+    "Exercício 3": {"nome": "Aço SAE 1117 (Estirado a frio)", "Sy": 68000, "Se": 34000}, # Valores típicos p/ 1117 CD
+    "Exercício 4": {"nome": "Aço SAE 1137 OQT 1300", "Sy": 93000, "Se": 46500} # Valores típicos p/ 1137 OQT
+}
+
+def gerar_relatorio_lote(lista_exercicios, ns):
     pdf = FPDF()
     
     # --- CAPA GERAL ---
@@ -154,7 +162,6 @@ def gerar_relatorio_lote(lista_exercicios, material, Se, Sy, ns):
     pdf.cell(0, 10, "LAUDO DE PROJETO DE EIXOS EM LOTE - UESC", ln=True, align='C')
     pdf.set_font("Arial", 'I', 11)
     pdf.cell(0, 6, "Disciplina: CET 948 - Elementos de Maquinas I | Prof. Dr. Jose Carlos de Camargo", ln=True, align='C')
-    pdf.cell(0, 6, f"Material Base para Calculos: {material}", ln=True, align='C')
     pdf.ln(10)
     
     # --- FUNDAMENTAÇÃO GERAL ---
@@ -172,9 +179,13 @@ def gerar_relatorio_lote(lista_exercicios, material, Se, Sy, ns):
     
     # --- LOOP PELOS EXERCÍCIOS SELECIONADOS ---
     for ex in lista_exercicios:
+        mat_info = DADOS_MATERIAIS[ex]
+        
         pdf.add_page()
         pdf.set_font("Arial", 'B', 14)
         pdf.cell(0, 10, f"MEMORIA DE CALCULO - {ex.upper()}", ln=True, align='C')
+        pdf.set_font("Arial", 'I', 10)
+        pdf.cell(0, 6, f"Material Especificado: {mat_info['nome']}", ln=True, align='C')
         pdf.ln(2)
         
         # Teoria Específica por Questão
@@ -205,8 +216,8 @@ def gerar_relatorio_lote(lista_exercicios, material, Se, Sy, ns):
         pdf.multi_cell(0, 5, texto_especifico)
         pdf.ln(5)
         
-        # Tabelas
-        df_tabela = gerar_tabela_pontos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, Se, Sy, ns)
+        # Tabelas (Calculadas automaticamente com o Sy e Se corretos do dicionário)
+        df_tabela = gerar_tabela_pontos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, mat_info["Se"], mat_info["Sy"], ns)
         
         pdf.set_font("Arial", 'B', 11)
         pdf.cell(0, 8, "Tabela de Diametros do Eixo", ln=True)
@@ -268,9 +279,15 @@ if menu in ["Visualizar Exercício 1", "Visualizar Exercício 2"]:
     n = st.sidebar.number_input("Rotação (RPM)", value=550 if "1" in menu else 750)
     P = st.sidebar.number_input("Potência (HP)", value=30.0 if "1" in menu else 20.0)
     
+    # Inputs devolvidos para a barra lateral da própria questão
+    st.sidebar.header("Propriedades Específicas")
+    Sy = st.sidebar.number_input("Sy (psi)", value=60000)
+    Se = st.sidebar.number_input("Se (psi)", value=30000)
+    ns = st.sidebar.number_input("Fator de Segurança", value=2.0)
+    
     if st.button("Calcular Esforços"):
         z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list = motor_ex1_2(n, P, 96, 6.0, 10.0)
-        df_tab = gerar_tabela_pontos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, 30000, 60000, 2.0)
+        df_tab = gerar_tabela_pontos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, Se, Sy, ns)
         st.dataframe(df_tab.style.format({"Momento M": "{:.1f}", "Torque T": "{:.1f}", "Cortante V": "{:.1f}", "D_min": "{:.3f}"}), use_container_width=True)
         st.pyplot(plotar_diagramas_completos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes))
 
@@ -278,9 +295,14 @@ elif menu == "Visualizar Exercício 3":
     st.title("⚙️ Análise Dinâmica - Exercício 3")
     n = st.sidebar.number_input("Rotação (RPM)", value=200)
     
+    st.sidebar.header("Propriedades Específicas (Ex: SAE 1117)")
+    Sy = st.sidebar.number_input("Sy (psi)", value=68000)
+    Se = st.sidebar.number_input("Se (psi)", value=34000)
+    ns = st.sidebar.number_input("Fator de Segurança", value=2.0)
+    
     if st.button("Calcular Esforços"):
         z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list = motor_ex3(n, 10.0, 6.0, 4.0)
-        df_tab = gerar_tabela_pontos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, 30000, 60000, 2.0)
+        df_tab = gerar_tabela_pontos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, Se, Sy, ns)
         st.dataframe(df_tab.style.format({"Momento M": "{:.1f}", "Torque T": "{:.1f}", "Cortante V": "{:.1f}", "D_min": "{:.3f}"}), use_container_width=True)
         st.pyplot(plotar_diagramas_completos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes))
 
@@ -288,9 +310,14 @@ elif menu == "Visualizar Exercício 4":
     st.title("⚙️ Análise Dinâmica - Exercício 4")
     n = st.sidebar.number_input("Rotação (RPM)", value=480)
     
+    st.sidebar.header("Propriedades Específicas (Ex: SAE 1137)")
+    Sy = st.sidebar.number_input("Sy (psi)", value=93000)
+    Se = st.sidebar.number_input("Se (psi)", value=46500)
+    ns = st.sidebar.number_input("Fator de Segurança", value=2.0)
+    
     if st.button("Calcular Esforços"):
         z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list = motor_ex4(n)
-        df_tab = gerar_tabela_pontos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, 30000, 60000, 2.0)
+        df_tab = gerar_tabela_pontos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, Se, Sy, ns)
         st.dataframe(df_tab.style.format({"Momento M": "{:.1f}", "Torque T": "{:.1f}", "Cortante V": "{:.1f}", "D_min": "{:.3f}"}), use_container_width=True)
         st.pyplot(plotar_diagramas_completos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes))
 
@@ -299,26 +326,23 @@ elif menu == "Visualizar Exercício 4":
 # =========================================================
 elif menu == "📄 Gerar Relatório (PDF)":
     st.title("📄 Central de Geração de Relatórios em Lote")
-    st.markdown("Marque nas opções abaixo todos os exercícios que deseja incluir em um único documento PDF.")
+    st.markdown("Marque nas opções abaixo todos os exercícios que deseja incluir no documento PDF. As propriedades dos materiais já estão automatizadas de acordo com o enunciado da lista.")
     
-    # NOVA SEÇÃO: Caixas de Seleção Múltiplas
     exercicios_selecionados = st.multiselect(
         "Selecione os exercícios para o laudo:", 
         ["Exercício 1", "Exercício 2", "Exercício 3", "Exercício 4"],
-        default=["Exercício 1", "Exercício 2", "Exercício 3", "Exercício 4"] # Já vem tudo marcado
+        default=["Exercício 1", "Exercício 2", "Exercício 3", "Exercício 4"]
     )
     
-    material = st.text_input("Especifique o material:", "Aço SAE 1040")
-    Sy = st.number_input("Limite de Escoamento - Sy (psi)", value=60000)
-    Se = st.number_input("Limite de Fadiga - Se (psi)", value=30000)
-    ns = st.number_input("Fator de Segurança (ns)", value=2.0)
+    st.sidebar.header("Segurança Global")
+    ns = st.sidebar.number_input("Fator de Segurança para o Laudo (ns)", value=2.0)
     
     if st.button("Compilar Documento Unificado", type="primary"):
         if not exercicios_selecionados:
             st.warning("Selecione pelo menos um exercício para gerar o PDF!")
         else:
             with st.spinner("Gerando gráficos e compilando PDF... Isso pode levar alguns segundos."):
-                pdf_bytes = gerar_relatorio_lote(exercicios_selecionados, material, Se, Sy, ns)
+                pdf_bytes = gerar_relatorio_lote(exercicios_selecionados, ns)
                 
             st.success("Documento gerado com sucesso!")
             st.download_button(
