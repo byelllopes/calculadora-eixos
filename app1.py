@@ -164,14 +164,6 @@ DADOS_MATERIAIS = {
 def clean_text(text):
     return text.encode('latin-1', 'replace').decode('latin-1')
 
-def nota_didatica(pdf, texto):
-    pdf.ln(2)
-    pdf.set_font("Times", 'I', 11)
-    pdf.set_text_color(80, 80, 80)
-    pdf.multi_cell(0, 5, clean_text(f"Nota Didática: {texto}"))
-    pdf.set_text_color(0, 0, 0)
-    pdf.ln(3)
-
 def equacao(pdf, eq_literal, eq_numeros):
     pdf.set_font("Times", 'I', 12)
     pdf.cell(0, 6, clean_text(eq_literal), ln=True, align='C')
@@ -270,7 +262,7 @@ def gerar_relatorio_lote(lista_exercicios, ns):
     intro2 = "O dimensionamento escala os diâmetros mínimos de forma individual para cada elemento (D1, D2, D3...) com base nos fatores de concentração de tensão (Kt).\n\n"
     intro2 += "A seguir, são descritos os conceitos e complementos técnicos que fundamentam as memórias de cálculo deste laudo:\n"
     pdf.multi_cell(0, 6, clean_text(intro2))
-    pdf.ln(4)
+    pdf.ln(10) # ESPAÇAMENTO AUMENTADO AQUI PARA "RESPIRAR" ANTES DA LISTA
 
     fundamentos = [
         ("Afastamentos dos elementos", "Os afastamentos representam as distâncias entre mancais, engrenagens e pontos de aplicação das forças. Essas distâncias influenciam diretamente o momento fletor do eixo."),
@@ -290,7 +282,7 @@ def gerar_relatorio_lote(lista_exercicios, ns):
         pdf.cell(0, 6, clean_text(f"- {titulo}:"), ln=True)
         pdf.set_font("Times", '', 12)
         pdf.multi_cell(0, 6, clean_text(desc))
-        pdf.ln(1)
+        pdf.ln(8) # ESPAÇAMENTO GENEROSO ENTRE OS TÓPICOS PARA PREENCHER BEM AS PÁGINAS
     
     # ================= RESOLUÇÃO DOS EXERCÍCIOS =================
     for ex in lista_exercicios:
