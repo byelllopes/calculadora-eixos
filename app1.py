@@ -201,7 +201,6 @@ def gerar_relatorio_lote(lista_exercicios, ns):
         "Davi Lisboa da Silva Almeida (202110922)",
         "Iago Campos de Melo (202311585)",
         "João Gabryell Lopes Santana (202110926)",
-        "João Felipe Santos Matos (202110921)",
         "Kaike Santos dos Santos (202111309)",
         "Pedro Enrique Nascimento Santos (202211370)",
         "Tharcizio Rubens Santos Mota (202211373)"
