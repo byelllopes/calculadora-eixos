@@ -152,7 +152,7 @@ def motor_ex4(n):
     return z, Vx, Vy, My, Mx, T_mesh, z_pontos, nomes, kt_list, dados_calc
 
 # =========================================================
-# 3. GERADOR DO SUPER PDF (Estilo Passo a Passo Didático)
+# 3. GERADOR DO SUPER PDF
 # =========================================================
 DADOS_MATERIAIS = {
     "Exercício 1": {"nome": "Aço SAE 1040 estirado a frio", "Sy": 60000, "Se": 30000},
@@ -164,17 +164,8 @@ DADOS_MATERIAIS = {
 def clean_text(text):
     return text.encode('latin-1', 'replace').decode('latin-1')
 
-def nota_didatica(pdf, texto):
-    """Insere blocos explicativos em itálico e com cor diferenciada."""
-    pdf.ln(2)
-    pdf.set_font("Times", 'I', 11)
-    pdf.set_text_color(80, 80, 80)
-    pdf.multi_cell(0, 5, clean_text(f"Nota Didática: {texto}"))
-    pdf.set_text_color(0, 0, 0)
-    pdf.ln(3)
-
 def equacao(pdf, eq_literal, eq_numeros):
-    """Imprime as equações centralizadas, imitando os prints."""
+    """Imprime as equações centralizadas imitando os cálculos armados manuais."""
     pdf.set_font("Times", 'I', 12)
     pdf.cell(0, 6, clean_text(eq_literal), ln=True, align='C')
     pdf.set_font("Times", 'B', 12)
@@ -195,7 +186,7 @@ def gerar_relatorio_lote(lista_exercicios, ns):
         
     pdf.set_font("Times", 'B', 12)
     pdf.cell(0, 6, clean_text("UNIVERSIDADE ESTADUAL DE SANTA CRUZ - UESC"), ln=True, align='C')
-    pdf.cell(0, 6, clean_text("DEPARTAMENTO DE ENGENHARIAS E COMPUTAÇÃO - DEC"), ln=True, align='C')
+    pdf.cell(0, 6, clean_text("DEPARTAMENTO DE CIÊNCIAS EXATAS E TECNOLÓGICAS - DCET"), ln=True, align='C')
     pdf.cell(0, 6, clean_text("CURSO DE ENGENHARIA MECÂNICA"), ln=True, align='C')
     
     pdf.ln(60)
@@ -237,16 +228,46 @@ def gerar_relatorio_lote(lista_exercicios, ns):
     pdf.ln(30)
     pdf.set_left_margin(90)
     pdf.set_font("Times", '', 11)
-    justificativa = "Trabalho apresentado como critério de avaliação do 2º crédito da disciplina CET548 -- Elementos de Máquinas I.\n\nTurma T02. Dia da entrega do crédito: 27/06/2026."
+    justificativa = "Trabalho apresentado como critério de avaliação do 2º crédito da disciplina CET 948 -- Elementos de Máquinas I.\n\nTurma T07. Dia da entrega do crédito: 27/05/2026."
     pdf.multi_cell(0, 6, clean_text(justificativa), align='J')
     pdf.set_left_margin(30)
     
     pdf.ln(25)
     pdf.set_font("Times", 'B', 12)
-    pdf.cell(0, 6, clean_text("Professor: José Carlos de Camargo"), ln=True, align='C')
+    pdf.cell(0, 6, clean_text("Professor: Dr. José Carlos de Camargo"), ln=True, align='C')
     pdf.set_y(-50)
     pdf.cell(0, 6, clean_text("Ilhéus - BA"), ln=True, align='C')
     pdf.cell(0, 6, clean_text("2026"), ln=True, align='C')
+    
+    # ================= INTRODUÇÃO GERAL E COMPLEMENTOS (PÁGINA 3) =================
+    pdf.add_page()
+    pdf.set_font("Times", 'B', 16)
+    pdf.cell(0, 10, clean_text("Introdução e Complementos Técnicos"), ln=True)
+    pdf.set_font("Times", '', 12)
+    intro = "Para todos os problemas de eixos rotativos sujeitos a carregamentos combinados de flexão e torção cíclica, adota-se a formulação da norma ASME/Von Mises para fadiga:\n\nd = [ (32 * ns / pi) * sqrt( (M_max / Se)^2 + 0.75 * (T / Sy)^2 ) ]^(1/3)\n\n"
+    intro += "A seguir, são descritos os conceitos e complementos técnicos que fundamentam as memórias de cálculo deste laudo:\n"
+    pdf.multi_cell(0, 6, clean_text(intro))
+    pdf.ln(4)
+
+    fundamentos = [
+        ("Afastamentos dos elementos", "Os afastamentos representam as distâncias entre mancais, engrenagens e pontos de aplicação das forças. Essas distâncias influenciam diretamente o momento fletor do eixo."),
+        ("Torque transmitido", "O torque representa o esforço de torção responsável pela transmissão de potência no eixo. Quanto maior a potência transmitida, maior o torque atuante."),
+        ("Forças atuantes", "As forças tangenciais e radiais aplicadas pelos elementos mecânicos geram esforços de flexão no eixo."),
+        ("Diagrama de corpo livre", "No diagrama de corpo livre representamos todas as forças e reações atuantes no eixo para aplicar as equações de equilíbrio."),
+        ("Reações nos mancais", "As reações nos mancais foram calculadas utilizando as equações de equilíbrio estático. Elas representam as forças de apoio que equilibram o sistema."),
+        ("Esforço cortante", "O diagrama de esforço cortante mostra como as forças internas variam ao longo do eixo. As mudanças no gráfico ocorrem nos pontos de aplicação das forças."),
+        ("Momento fletor", "O momento fletor representa a tendência de flexão do eixo. O ponto de maior momento é considerado crítico para o dimensionamento."),
+        ("Torção no eixo", "A transmissão de torque gera tensões de cisalhamento devido à torção no eixo."),
+        ("Dimensionamento", "O dimensionamento foi realizado considerando os esforços combinados de flexão e torção para garantir segurança mecânica."),
+        ("Chavetas", "A chaveta é responsável pela transmissão de torque entre o eixo e o elemento acoplado.")
+    ]
+
+    for titulo, desc in fundamentos:
+        pdf.set_font("Times", 'B', 12)
+        pdf.cell(0, 6, clean_text(f"• {titulo}:"), ln=True)
+        pdf.set_font("Times", '', 12)
+        pdf.multi_cell(0, 6, clean_text(desc))
+        pdf.ln(1)
     
     # ================= RESOLUÇÃO DOS EXERCÍCIOS =================
     for ex in lista_exercicios:
@@ -266,14 +287,13 @@ def gerar_relatorio_lote(lista_exercicios, ns):
             # PASSO 1
             pdf.set_font("Times", 'B', 12)
             pdf.cell(0, 8, clean_text("Passo 1 - Torque transmitido"), ln=True)
-            nota_didatica(pdf, "O torque representa o esforço de torção responsável pela transmissão de potência no eixo. Quanto maior a potência transmitida, maior o torque atuante. A transmissão de torque gera tensões de cisalhamento devido à torção no eixo.")
+            pdf.set_font("Times", '', 12)
+            pdf.cell(0, 6, clean_text(f"Dados: n = {n} rpm, P = {P} hp."), ln=True)
             equacao(pdf, "T = (P * 63025) / n", f"T = ({P} * 63025) / {n} = {dc['T']:.2f} lb.pol")
             
             # PASSO 2
             pdf.set_font("Times", 'B', 12)
             pdf.cell(0, 8, clean_text("Passo 2 - Forças atuantes nos elementos"), ln=True)
-            nota_didatica(pdf, "As forças tangenciais e radiais aplicadas pelos elementos mecânicos geram esforços de flexão no eixo. Os afastamentos representam as distâncias entre mancais, engrenagens e pontos de aplicação. Essas distâncias influenciam diretamente o momento fletor.")
-            
             pdf.set_font("Times", '', 12)
             pdf.cell(0, 6, clean_text(">> Na Engrenagem B (z = 10 pol):"), ln=True)
             equacao(pdf, "F_tB = T / R_B", f"F_tB = {dc['T']:.2f} / 8 = {dc['FtB']:.2f} lb")
@@ -286,9 +306,7 @@ def gerar_relatorio_lote(lista_exercicios, ns):
             
             # PASSO 3
             pdf.set_font("Times", 'B', 12)
-            pdf.cell(0, 8, clean_text("Passo 3 - Diagrama de corpo livre e Reações nos mancais"), ln=True)
-            nota_didatica(pdf, "No diagrama de corpo livre representamos todas as forças e reações atuantes no eixo para aplicar as equações de equilíbrio estático (ΣF=0 e ΣM=0). Elas representam as forças de apoio que equilibram o sistema.")
-            
+            pdf.cell(0, 8, clean_text("Passo 3 - Reações nos mancais (Equilíbrio Estático)"), ln=True)
             pdf.set_font("Times", '', 12)
             pdf.cell(0, 6, clean_text(">> Mancais A (z=0) e C (z=20) no Plano Horizontal (XZ):"), ln=True)
             equacao(pdf, "R_Cx = - [ (F_tB * 10) + (F_Dx * 26) ] / 20", f"R_Cx = {dc['RCx']:.2f} lb")
@@ -304,15 +322,12 @@ def gerar_relatorio_lote(lista_exercicios, ns):
             
             pdf.set_font("Times", 'B', 12)
             pdf.cell(0, 8, clean_text("Passo 1 - Distribuição de Torque"), ln=True)
-            nota_didatica(pdf, "O torque representa o esforço de torção responsável pela transmissão de potência no eixo.")
-            equacao(pdf, "T = (P * 63025) / n", f"Entrada T_A = {dc['TA']:.2f} lb.pol")
+            equacao(pdf, "T_A = (10 * 63025) / 200", f"Entrada T_A = {dc['TA']:.2f} lb.pol")
             equacao(pdf, "T_C = (6 * 63025) / 200", f"Saída T_C = {dc['TC']:.2f} lb.pol")
             equacao(pdf, "T_D = (4 * 63025) / 200", f"Saída T_D = {dc['TD']:.2f} lb.pol")
             
             pdf.set_font("Times", 'B', 12)
             pdf.cell(0, 8, clean_text("Passo 2 - Forças atuantes nos elementos"), ln=True)
-            nota_didatica(pdf, "As forças tangenciais e radiais geram esforços de flexão no eixo. Os afastamentos representam as distâncias entre mancais e engrenagens. Essas distâncias influenciam o momento fletor do eixo.")
-            
             pdf.set_font("Times", '', 12)
             pdf.cell(0, 6, clean_text(">> Na Polia A (z = 0 pol):"), ln=True)
             equacao(pdf, "F_A = 2.0 * (T_A / R_A)", f"F_A = {dc['FA']:.2f} lb (-Y)")
@@ -326,7 +341,6 @@ def gerar_relatorio_lote(lista_exercicios, ns):
             
             pdf.set_font("Times", 'B', 12)
             pdf.cell(0, 8, clean_text("Passo 3 - Reações de Apoio nos Mancais B(z=6) e E(z=26)"), ln=True)
-            nota_didatica(pdf, "No diagrama de corpo livre representamos todas as forças e reações atuantes. Elas representam as forças de apoio que equilibram o sistema.")
             pdf.set_font("Times", '', 12)
             equacao(pdf, "Plano XZ (Horizontal)", f"R_Bx = {dc['RBx']:.2f} lb | R_Ex = {dc['REx']:.2f} lb")
             equacao(pdf, "Plano YZ (Vertical)", f"R_By = {dc['RBy']:.2f} lb | R_Ey = {dc['REy']:.2f} lb")
@@ -337,7 +351,6 @@ def gerar_relatorio_lote(lista_exercicios, ns):
             
             pdf.set_font("Times", 'B', 12)
             pdf.cell(0, 8, clean_text("Passo 1 - Torques e Forças Atuantes"), ln=True)
-            nota_didatica(pdf, "O torque representa o esforço de torção responsável pela transmissão de potência. As forças tangenciais e radiais geram esforços de flexão.")
             equacao(pdf, "T_C = (11 * 63025) / 480", f"T_C = {dc['TC']:.2f} lb.pol (Entrada)")
             equacao(pdf, "T_B = (5 * 63025) / 480", f"T_B = {dc['TB']:.2f} lb.pol (Pinhão B)")
             
@@ -355,7 +368,6 @@ def gerar_relatorio_lote(lista_exercicios, ns):
             
             pdf.set_font("Times", 'B', 12)
             pdf.cell(0, 8, clean_text("Passo 2 - Reações de Apoio (Mancais A e F)"), ln=True)
-            nota_didatica(pdf, "As reações nos mancais foram calculadas utilizando as equações de equilíbrio estático.")
             pdf.set_font("Times", '', 12)
             equacao(pdf, "Plano XZ (Horizontal)", f"R_Ax = {dc['RAx']:.2f} lb | R_Fx = {dc['RFx']:.2f} lb")
             equacao(pdf, "Plano YZ (Vertical)", f"R_Ay = {dc['RAy']:.2f} lb | R_Fy = {dc['RFy']:.2f} lb")
@@ -368,7 +380,6 @@ def gerar_relatorio_lote(lista_exercicios, ns):
             
         pdf.set_font("Times", 'B', 14)
         pdf.cell(0, 8, clean_text(f"Passo 4 - Diagramas de Esforços Internos"), ln=True)
-        nota_didatica(pdf, "O diagrama de esforço cortante mostra como as forças internas variam ao longo do eixo. As mudanças no gráfico ocorrem nos pontos de aplicação. O momento fletor representa a tendência de flexão do eixo.")
         
         fig = plotar_diagramas_completos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes)
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
@@ -388,7 +399,6 @@ def gerar_relatorio_lote(lista_exercicios, ns):
         pdf.ln(10)
         pdf.set_font("Times", 'B', 14)
         pdf.cell(0, 8, clean_text("Passo 5 - Dimensionamento e Chavetas"), ln=True)
-        nota_didatica(pdf, "O dimensionamento foi realizado considerando os esforços de flexão e torção para garantir segurança mecânica. O ponto de maior momento é considerado crítico para o dimensionamento. A chaveta transmite torque para o eixo.")
         
         pdf.set_font("Times", '', 12)
         pdf.cell(0, 6, clean_text(f"Ponto crítico selecionado: {linha_critica['Ponto']} (z = {linha_critica['Z (pol)']} pol)."), ln=True)
@@ -435,7 +445,7 @@ def gerar_relatorio_lote(lista_exercicios, ns):
         "2. NORTON, R. L. (2013). Projetos de Máquinas: Uma Abordagem Integrada. 4ª Edição. Bookman.",
         "3. JUVINALL, R. C., & MARSHEK, K. M. (2008). Fundamentos do Projeto de Componentes de Máquinas. 4ª Edição. LTC.",
         "4. MOTT, R. L. (2015). Elementos de Máquinas em Projetos Mecânicos. 5ª Edição. Pearson.",
-        "5. CAMARGO, J. C. (2026). Material Didático - CET948: Elementos de Máquinas I. Universidade Estadual de Santa Cruz (UESC)."
+        "5. CAMARGO, J. C. (2026). Material Didático - CET 948: Elementos de Máquinas I. Universidade Estadual de Santa Cruz (UESC)."
     ]
     for ref in referencias:
         pdf.multi_cell(0, 6, clean_text(ref))
