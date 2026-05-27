@@ -7,9 +7,13 @@ from fpdf import FPDF
 import tempfile
 import os
 
+# =========================================================
+# CONFIGURAÇÃO DA PÁGINA (Deve ser o 1º comando Streamlit)
+# =========================================================
+icone = "logo_uesc.png" if os.path.exists("logo_uesc.png") else "⚙️"
 st.set_page_config(
     page_title="Calculadora de Eixos",
-    page_icon="logo_uesc.png",
+    page_icon=icone,
     layout="wide"
 )
 
@@ -35,31 +39,28 @@ def calcular_geometria_engrenagem(Z, Pd):
 
 def dimensionar_chaveta(T, D_eixo, Sy, ns):
     """Dimensionamento de Chaveta (Cisalhamento e Esmagamento)"""
-    # Proporções padronizadas ANSI
     w = D_eixo / 4.0
     h = D_eixo / 4.0 if D_eixo <= 2.5 else D_eixo / 6.0
     
     F_chaveta = T / (D_eixo / 2.0)
-    Ssy = 0.5 * Sy # Tensão de escoamento ao cisalhamento
+    Ssy = 0.5 * Sy 
     
     L_cisalhamento = (F_chaveta * ns) / (w * Ssy)
     L_esmagamento = (F_chaveta * ns) / ((h / 2.0) * Sy)
     
     L_min = max(L_cisalhamento, L_esmagamento)
-    L_comercial = math.ceil(L_min * 4) / 4.0 # Arredonda para 1/4 pol
+    L_comercial = math.ceil(L_min * 4) / 4.0 
     return w, h, L_min, L_comercial, L_cisalhamento > L_esmagamento
 
 def calcular_deflexao_maxima(M_res, z, z_apoios, D_avg):
     """Dupla Integração Numérica para encontrar a Flecha (Rigidez)"""
-    E = 30e6 # Módulo de Elasticidade Aço (psi)
+    E = 30e6 
     I = (math.pi * (D_avg**4)) / 64.0
     dz = z[1] - z[0]
     
-    # Integração M/EI -> Rotação (theta) -> Deflexão (y)
     theta = np.cumsum(M_res) * dz / (E * I)
     y = np.cumsum(theta) * dz
     
-    # Condições de Contorno: Deflexão nula nos mancais
     idx_A = (np.abs(z - z_apoios[0])).argmin()
     idx_B = (np.abs(z - z_apoios[1])).argmin()
     
@@ -80,10 +81,10 @@ def gerar_tabela_pontos(z_mesh, Vx, Vy, My, Mx, T_mesh, z_pontos, nomes, kt_list
         Kt = kt_list[i]
         D_min = calcular_diametro_local(M_local, T_local, V_local, Kt, Se, Sy, ns)
         
+        # As chaves foram encurtadas aqui, gerando o KeyError corrigido agora:
         dados.append({"Ponto": nomes[i], "Z": z_val, "Kt": Kt, "M": M_local, "T": T_local, "V": V_local, "D": D_min})
     return pd.DataFrame(dados)
 
-# Gráficos (Mantidos iguais à versão anterior)
 def plotar_diagramas_completos(z, Vx, Vy, My, Mx, T_mesh, z_pontos, nomes):
     fig, axs = plt.subplots(3, 2, figsize=(14, 12), sharex=True)
     M_res = np.sqrt(My**2 + Mx**2)
@@ -122,7 +123,7 @@ def plotar_diagramas_completos(z, Vx, Vy, My, Mx, T_mesh, z_pontos, nomes):
     return fig
 
 # =========================================================
-# 2. MOTORES DE RESOLUÇÃO (Atualizados com Z dos Apoios)
+# 2. MOTORES DE RESOLUÇÃO 
 # =========================================================
 def motor_ex1_2(n, P, Z_dentes, Pd, D_polia):
     T = (P * 63025) / n
@@ -445,7 +446,9 @@ def gerar_relatorio_lote(lista_exercicios, ns):
         # ==================== DIMENSIONAMENTO E CHAVETAS ====================
         passo_atual += 1
         df_tabela = gerar_tabela_pontos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, mat_info["Se"], mat_info["Sy"], ns)
-        linha_critica = df_tabela.loc[df_tabela['D_min'].idxmax()]
+        
+        # Correção do KeyError aqui -> a coluna agora chama 'D'
+        linha_critica = df_tabela.loc[df_tabela['D'].idxmax()]
         
         if pdf.get_y() + 90 > 280: pdf.add_page()
             
@@ -458,7 +461,7 @@ def gerar_relatorio_lote(lista_exercicios, ns):
         pdf.cell(0, 6, clean_text("a) Avaliação de Rigidez (Deflexão por Euler-Bernoulli):"), ln=True)
         pdf.set_font("Times", '', 12)
         M_res_mesh = np.sqrt(My**2 + Mx**2)
-        D_avg = df_tabela['D'].mean() + 0.25 # Diâmetro médio aproximado arredondado
+        D_avg = df_tabela['D'].mean() + 0.25 
         deflexao_max = calcular_deflexao_maxima(M_res_mesh, z, z_apoios, D_avg)
         pdf.multi_cell(0, 6, clean_text(f"Através de dupla integração numérica do diagrama de momentos, a flecha máxima teórica estimada para o eixo é de {deflexao_max:.5f} polegadas. Esse valor é essencial para garantir o não-desalinhamento das engrenagens."))
         pdf.ln(4)
@@ -474,10 +477,10 @@ def gerar_relatorio_lote(lista_exercicios, ns):
         pdf.set_font("Times", 'I', 12)
         pdf.cell(0, 6, clean_text("c) Dimensionamento Geométrico da Chaveta ANSI (Engrenagem Principal):"), ln=True)
         pdf.set_font("Times", '', 12)
-        # Identificar qual elemento tem mais torque
+        
         linha_torque = df_tabela.loc[df_tabela['T'].idxmax()]
         T_chav = linha_torque['T']
-        D_chav = linha_torque['D'] + 0.1 # Ajuste comercial
+        D_chav = linha_torque['D'] + 0.1 
         w, h, L_min, L_comercial, falha_cisal = dimensionar_chaveta(T_chav, D_chav, mat_info["Sy"], ns)
         
         criterio = "Cisalhamento" if falha_cisal else "Esmagamento"
@@ -534,11 +537,6 @@ def gerar_relatorio_lote(lista_exercicios, ns):
 # =========================================================
 # 4. ESTRUTURA DO SITE E MENU LATERAL
 # =========================================================
-st.set_page_config(page_title="Projeto Eixos UESC", layout="wide")
-st.sidebar.markdown("# 🎓 UESC - Eng. Mecânica")
-st.sidebar.markdown("### Elementos de Máquinas I")
-st.sidebar.markdown("---")
-
 menu = st.sidebar.selectbox("Navegação:", [
     "Visualizar Exercício 1", 
     "Visualizar Exercício 2", 
@@ -612,5 +610,4 @@ elif menu == "📄 Gerar Relatório Oficial (LaTeX)":
             with st.spinner("Construindo documento acadêmico..."):
                 pdf_bytes = gerar_relatorio_lote(exercicios_selecionados, ns)
             st.success("Relatório gerado com sucesso!")
-            st.download_button(label="📥 Baixar Trabalho Final (PDF)", data=pdf_bytes, file_name=f"Trabalho_Eixos_UESC.pdf", mime="application/pdf")
             st.download_button(label="📥 Baixar Trabalho Final (PDF)", data=pdf_bytes, file_name=f"Trabalho_Eixos_UESC.pdf", mime="application/pdf")
