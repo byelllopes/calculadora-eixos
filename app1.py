@@ -255,7 +255,6 @@ def gerar_relatorio_lote(lista_exercicios, ns):
     pdf.multi_cell(0, 6, clean_text(intro))
     pdf.ln(2)
 
-    # Imagem da fórmula ASME
     if os.path.exists("formula_asme.png"):
         y_atual = pdf.get_y()
         pdf.image("formula_asme.png", x=55, y=y_atual, w=100) 
@@ -270,7 +269,7 @@ def gerar_relatorio_lote(lista_exercicios, ns):
     intro2 = "O dimensionamento escala os diâmetros mínimos de forma individual para cada elemento (D1, D2, D3...) com base nos fatores de concentração de tensão (Kt).\n\n"
     intro2 += "A seguir, são descritos os conceitos e complementos técnicos que fundamentam as memórias de cálculo deste laudo:\n"
     pdf.multi_cell(0, 6, clean_text(intro2))
-    pdf.ln(10) # ESPAÇAMENTO AUMENTADO AQUI PARA "RESPIRAR" ANTES DA LISTA
+    pdf.ln(10)
 
     fundamentos = [
         ("Afastamentos dos elementos", "Os afastamentos representam as distâncias entre mancais, engrenagens e pontos de aplicação das forças. Essas distâncias influenciam diretamente o momento fletor do eixo."),
@@ -290,11 +289,13 @@ def gerar_relatorio_lote(lista_exercicios, ns):
         pdf.cell(0, 6, clean_text(f"- {titulo}:"), ln=True)
         pdf.set_font("Times", '', 12)
         pdf.multi_cell(0, 6, clean_text(desc))
-        pdf.ln(8) # ESPAÇAMENTO GENEROSO ENTRE OS TÓPICOS PARA PREENCHER BEM AS PÁGINAS
+        pdf.ln(8)
     
     # ================= RESOLUÇÃO DOS EXERCÍCIOS =================
     for ex in lista_exercicios:
         mat_info = DADOS_MATERIAIS[ex]
+        num_ex = ex.split()[-1] # Obtém '1', '2', '3' ou '4'
+        
         pdf.add_page()
         pdf.set_font("Times", 'B', 16)
         pdf.cell(0, 10, clean_text(f"Resolução - {ex}"), ln=True)
@@ -393,11 +394,7 @@ def gerar_relatorio_lote(lista_exercicios, ns):
             equacao(pdf, "Plano YZ (Vertical)", f"R_Ay = {dc['RAy']:.2f} lb | R_Fy = {dc['RFy']:.2f} lb")
 
         # ==================== GRÁFICOS (PASSO 4) ====================
-        if pdf.get_y() + 150 > 280:
-            pdf.add_page()
-        else:
-            pdf.ln(5)
-            
+        pdf.add_page()
         pdf.set_font("Times", 'B', 14)
         pdf.cell(0, 8, clean_text(f"Passo 4 - Diagramas de Esforços Internos"), ln=True)
         
@@ -407,25 +404,41 @@ def gerar_relatorio_lote(lista_exercicios, ns):
             pdf.image(tmp.name, x=25, y=pdf.get_y(), w=160) 
         plt.close(fig)
         
-        pdf.set_y(pdf.get_y() + 130)
+        # Pula para a próxima página de forma segura
+        pdf.add_page()
         
-        # ==================== DIMENSIONAMENTO (PASSO 5) ====================
+        # ==================== VALIDAÇÃO MDSOLIDS (PASSO 5) ====================
+        arq_md_png = f"mdsolids_ex{num_ex}.png"
+        arq_md_jpg = f"mdsolids_ex{num_ex}.jpg"
+        
+        if os.path.exists(arq_md_png) or os.path.exists(arq_md_jpg):
+            pdf.set_font("Times", 'B', 14)
+            pdf.cell(0, 8, clean_text("Passo 5 - Validação Computacional (MDSolids)"), ln=True)
+            
+            texto_validacao = "A fim de validar os diagramas analíticos e os cálculos de reações gerados pelo algoritmo em Python, realizou-se uma simulação computacional utilizando o software MDSolids. As imagens abaixo comprovam a convergência dos momentos fletores e esforços cortantes nos planos horizontal e vertical."
+            pdf.set_font("Times", '', 12)
+            pdf.multi_cell(0, 6, clean_text(texto_validacao))
+            pdf.ln(5)
+            
+            imagem_md = arq_md_png if os.path.exists(arq_md_png) else arq_md_jpg
+            pdf.image(imagem_md, x=20, w=170)
+            
+            pdf.add_page() # Adiciona nova página após a validação para o passo final
+            
+        # ==================== DIMENSIONAMENTO (PASSO 6) ====================
         df_tabela = gerar_tabela_pontos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, mat_info["Se"], mat_info["Sy"], ns)
         linha_critica = df_tabela.loc[df_tabela['D_min'].idxmax()]
         
-        if pdf.get_y() + 70 > 280:
-            pdf.add_page()
-            
-        pdf.ln(10)
+        # O título agora é Passo 6 se a validação ocorreu, senão continua sendo Passo 5 no documento do aluno
+        passo_dim = "Passo 6" if (os.path.exists(arq_md_png) or os.path.exists(arq_md_jpg)) else "Passo 5"
+        
         pdf.set_font("Times", 'B', 14)
-        pdf.cell(0, 8, clean_text("Passo 5 - Dimensionamento e Chavetas"), ln=True)
+        pdf.cell(0, 8, clean_text(f"{passo_dim} - Dimensionamento e Chavetas"), ln=True)
         
         pdf.set_font("Times", '', 12)
         pdf.cell(0, 6, clean_text(f"Ponto crítico selecionado: {linha_critica['Ponto']} (z = {linha_critica['Z (pol)']} pol)."), ln=True)
         
         equacao(pdf, "M_max = sqrt( M_y^2 + M_x^2 )", f"M_max = {linha_critica['Momento M']:.1f} lb.pol")
-        
-        # Equação ASME sem caracteres difíceis
         equacao(pdf, "d = [ (32*ns/pi) * sqrt( (M_max/Se)^2 + 0.75*(T/Sy)^2 ) ]^(1/3)", f"d = {linha_critica['D_min']:.2f} pol")
 
         pdf.ln(5)
