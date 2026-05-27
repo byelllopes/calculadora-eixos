@@ -13,17 +13,58 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("Calculadora de Eixos")
+st.title("Calculadora de Eixos e Componentes Acoplados")
 
 # =========================================================
-# 1. MATEMÁTICA E DIMENSIONAMENTO DE FADIGA
+# 1. MATEMÁTICA E DIMENSIONAMENTO DE FADIGA E CHAVETAS
 # =========================================================
+
 def calcular_diametro_local(M, T, V, Kt, Se, Sy, ns):
     if M < 1.0 and T < 1.0 and V > 1.0: 
         return math.sqrt((2.94 * Kt * V * ns) / Se)
     termo_flexao = (Kt * M / Se) ** 2
     termo_torcao = 0.75 * ((T / Sy) ** 2)
     return ((32 * ns / math.pi) * math.sqrt(termo_flexao + termo_torcao)) ** (1 / 3)
+
+def dimensionar_chaveta(Torque, diametro_eixo, Sy_chaveta, ns):
+    """ Dimensiona uma chaveta quadrada plana (ANSI). """
+    if Torque < 1.0 or diametro_eixo == 0:
+        return {"Largura (w)": 0.0, "Altura (h)": 0.0, "Comprimento Adotado": 0.0}
+    
+    w = diametro_eixo / 4.0
+    h = w
+    Forca = Torque / (diametro_eixo / 2.0)
+    
+    Ssy = 0.577 * Sy_chaveta
+    Tensa_adm_cisalhamento = Ssy / ns
+    L_cisalhamento = Forca / (w * Tensa_adm_cisalhamento)
+    
+    Tensao_adm_esmagamento = Sy_chaveta / ns
+    L_esmagamento = Forca / ((h / 2.0) * Tensao_adm_esmagamento)
+    
+    L_projeto = max(L_cisalhamento, L_esmagamento)
+    
+    return {
+        "Largura (w)": w,
+        "Altura (h)": h,
+        "Comprimento Adotado": L_projeto
+    }
+
+def calcular_rigidez_secao(diametro, E=30e6):
+    """ Calcula a Rigidez à Flexão (EI) e Torção (GJ). """
+    I = (math.pi * (diametro ** 4)) / 64.0
+    EI = E * I
+    J = (math.pi * (diametro ** 4)) / 32.0
+    GJ = 11.5e6 * J 
+    return {"I (in^4)": I, "Rigidez Flexão (EI)": EI, "Rigidez Torção (GJ)": GJ}
+
+def calcular_geometria_engrenagem(N_dentes, Passo_Diametral_Pd):
+    """ Parâmetros da engrenagem (AGMA). """
+    D = N_dentes / Passo_Diametral_Pd
+    p = math.pi / Passo_Diametral_Pd
+    a = 1.0 / Passo_Diametral_Pd
+    b = 1.25 / Passo_Diametral_Pd
+    return {"D Primitivo": D, "Passo": p, "Adendo": a, "Dedendo": b, "Altura": a + b}
 
 def gerar_tabela_pontos(z_mesh, Vx, Vy, My, Mx, T_mesh, z_pontos, nomes, kt_list, Se, Sy, ns):
     dados = []
@@ -38,10 +79,18 @@ def gerar_tabela_pontos(z_mesh, Vx, Vy, My, Mx, T_mesh, z_pontos, nomes, kt_list
         Kt = kt_list[i]
         D_min = calcular_diametro_local(M_local, T_local, V_local, Kt, Se, Sy, ns)
         
+        # Chamando as novas funções de Chaveta e Rigidez
+        chaveta = dimensionar_chaveta(T_local, D_min, Sy, ns)
+        rigidez = calcular_rigidez_secao(D_min)
+        
         dados.append({
             "Ponto": nomes[i], "Z (pol)": z_val, "Kt": Kt,
             "Momento M": M_local, "Torque T": T_local, 
-            "Cortante V": V_local, "D_min": D_min
+            "Cortante V": V_local, "D_min": D_min,
+            "Chav_W": chaveta["Largura (w)"],
+            "Chav_H": chaveta["Altura (h)"],
+            "Chav_L": chaveta["Comprimento Adotado"],
+            "Rigidez EI": rigidez["Rigidez Flexão (EI)"]
         })
     return pd.DataFrame(dados)
 
@@ -280,8 +329,8 @@ def gerar_relatorio_lote(lista_exercicios, ns):
         ("Esforço cortante", "O diagrama de esforço cortante mostra como as forças internas variam ao longo do eixo. As mudanças no gráfico ocorrem nos pontos de aplicação das forças."),
         ("Momento fletor", "O momento fletor representa a tendência de flexão do eixo. O ponto de maior momento é considerado crítico para o dimensionamento."),
         ("Torção no eixo", "A transmissão de torque gera tensões de cisalhamento devido à torção no eixo."),
-        ("Dimensionamento", "O dimensionamento foi realizado considerando os esforços combinados de flexão e torção para garantir segurança mecânica."),
-        ("Chavetas", "A chaveta é responsável pela transmissão de torque entre o eixo e o elemento acoplado.")
+        ("Dimensionamento e Fadiga", "O dimensionamento foi realizado considerando os esforços combinados de flexão e torção para garantir segurança mecânica (Von Mises/ASME)."),
+        ("Chavetas e Rigidez", "As chavetas transmitem o torque resistindo a tensões de esmagamento e cisalhamento (Padrão ANSI). A rigidez à flexão (EI) foi reportada em cada degrau para garantir as restrições de deflexão linear e angular (evitando o desalinhamento das engrenagens).")
     ]
 
     for titulo, desc in fundamentos:
@@ -294,7 +343,7 @@ def gerar_relatorio_lote(lista_exercicios, ns):
     # ================= RESOLUÇÃO DOS EXERCÍCIOS =================
     for ex in lista_exercicios:
         mat_info = DADOS_MATERIAIS[ex]
-        num_ex = ex.split()[-1] # Obtém '1', '2', '3' ou '4'
+        num_ex = ex.split()[-1] 
         
         pdf.add_page()
         pdf.set_font("Times", 'B', 16)
@@ -404,7 +453,6 @@ def gerar_relatorio_lote(lista_exercicios, ns):
             pdf.image(tmp.name, x=25, y=pdf.get_y(), w=160) 
         plt.close(fig)
         
-        # Pula para a próxima página de forma segura
         pdf.add_page()
         
         # ==================== VALIDAÇÃO MDSOLIDS (PASSO 5) ====================
@@ -423,17 +471,16 @@ def gerar_relatorio_lote(lista_exercicios, ns):
             imagem_md = arq_md_png if os.path.exists(arq_md_png) else arq_md_jpg
             pdf.image(imagem_md, x=20, w=170)
             
-            pdf.add_page() # Adiciona nova página após a validação para o passo final
+            pdf.add_page() 
             
         # ==================== DIMENSIONAMENTO (PASSO 6) ====================
         df_tabela = gerar_tabela_pontos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, mat_info["Se"], mat_info["Sy"], ns)
         linha_critica = df_tabela.loc[df_tabela['D_min'].idxmax()]
         
-        # O título agora é Passo 6 se a validação ocorreu, senão continua sendo Passo 5 no documento do aluno
         passo_dim = "Passo 6" if (os.path.exists(arq_md_png) or os.path.exists(arq_md_jpg)) else "Passo 5"
         
         pdf.set_font("Times", 'B', 14)
-        pdf.cell(0, 8, clean_text(f"{passo_dim} - Dimensionamento e Chavetas"), ln=True)
+        pdf.cell(0, 8, clean_text(f"{passo_dim} - Dimensionamento do Eixo à Fadiga"), ln=True)
         
         pdf.set_font("Times", '', 12)
         pdf.cell(0, 6, clean_text(f"Ponto crítico selecionado: {linha_critica['Ponto']} (z = {linha_critica['Z (pol)']} pol)."), ln=True)
@@ -451,16 +498,43 @@ def gerar_relatorio_lote(lista_exercicios, ns):
         
         pdf.set_font("Times", '', 10)
         for i in range(len(df_tabela)):
-            pdf.cell(cols[0], 8, clean_text(str(df_tabela.iloc[i, 0])), border=1, align='C')
-            pdf.cell(cols[1], 8, str(df_tabela.iloc[i, 1]), border=1, align='C')
-            pdf.cell(cols[2], 8, str(df_tabela.iloc[i, 2]), border=1, align='C')
-            pdf.cell(cols[3], 8, f"{df_tabela.iloc[i, 3]:.1f}", border=1, align='C')
-            pdf.cell(cols[4], 8, f"{df_tabela.iloc[i, 4]:.1f}", border=1, align='C')
-            pdf.cell(cols[5], 8, f"{df_tabela.iloc[i, 5]:.1f}", border=1, align='C')
+            pdf.cell(cols[0], 8, clean_text(str(df_tabela.iloc[i]['Ponto'])), border=1, align='C')
+            pdf.cell(cols[1], 8, str(df_tabela.iloc[i]['Z (pol)']), border=1, align='C')
+            pdf.cell(cols[2], 8, str(df_tabela.iloc[i]['Kt']), border=1, align='C')
+            pdf.cell(cols[3], 8, f"{df_tabela.iloc[i]['Momento M']:.1f}", border=1, align='C')
+            pdf.cell(cols[4], 8, f"{df_tabela.iloc[i]['Torque T']:.1f}", border=1, align='C')
+            pdf.cell(cols[5], 8, f"{df_tabela.iloc[i]['Cortante V']:.1f}", border=1, align='C')
             pdf.set_font("Times", 'B', 10)
-            pdf.cell(cols[6], 8, f"{df_tabela.iloc[i, 6]:.3f}", border=1, align='C')
+            pdf.cell(cols[6], 8, f"{df_tabela.iloc[i]['D_min']:.3f}", border=1, align='C')
             pdf.set_font("Times", '', 10)
             pdf.ln()
+
+        # ==================== CHAVETAS E RIGIDEZ (PASSO 7) ====================
+        pdf.ln(10)
+        passo_chav = "Passo 7" if (os.path.exists(arq_md_png) or os.path.exists(arq_md_jpg)) else "Passo 6"
+        pdf.set_font("Times", 'B', 14)
+        pdf.cell(0, 8, clean_text(f"{passo_chav} - Componentes Acoplados (Chavetas) e Rigidez"), ln=True)
+        pdf.set_font("Times", '', 12)
+        
+        texto_chavetas = "Abaixo constam as dimensões estipuladas das chavetas (padrão ANSI quadrada) calculadas para resistir ao cisalhamento e esmagamento, bem como a respectiva rigidez à flexão (EI) do eixo em cada ponto, para avaliar posteriormente o critério da deflexão dinâmica."
+        pdf.multi_cell(0, 6, clean_text(texto_chavetas))
+        pdf.ln(5)
+
+        for i in range(len(df_tabela)):
+            linha = df_tabela.iloc[i]
+            if linha['Chav_L'] > 0: # Apenas imprime elementos com transmissão de torque
+                pdf.set_font("Times", 'B', 12)
+                pdf.cell(0, 6, clean_text(f">> {linha['Ponto']} (z = {linha['Z (pol)']} pol):"), ln=True)
+                pdf.set_font("Times", '', 12)
+                
+                detalhe_chaveta = f"Chaveta Quadrada [Largura x Altura]: {linha['Chav_W']:.3f} x {linha['Chav_H']:.3f} pol. Comprimento Útil Mínimo (L): {linha['Chav_L']:.3f} pol."
+                rigidez_info = f"Rigidez à Flexão (EI): {linha['Rigidez EI']:.2e} lb.in²"
+                
+                pdf.cell(10, 6, "", ln=0) # Indentação
+                pdf.cell(0, 6, clean_text(detalhe_chaveta), ln=True)
+                pdf.cell(10, 6, "", ln=0)
+                pdf.cell(0, 6, clean_text(rigidez_info), ln=True)
+                pdf.ln(3)
 
     # ================= CONCLUSÃO E REFERÊNCIAS (ÚLTIMA PÁGINA) =================
     pdf.add_page()
@@ -468,7 +542,7 @@ def gerar_relatorio_lote(lista_exercicios, ns):
     pdf.cell(0, 10, clean_text("Conclusão Geral"), ln=True)
     pdf.set_font("Times", '', 12)
     conc_text = "Neste trabalho, os eixos de transmissão foram analisados e dimensionados com sucesso sob carregamentos de fadiga severos. Aplicando as equações de equilíbrio estático, foi possível gerar os diagramas de corpo livre, esforço cortante e momento fletor espacial.\n\n"
-    conc_text += "A utilização da teoria da energia de distorção combinada de Von Mises (via norma ASME) permitiu escalar com precisão o diâmetro da seção transversal do eixo para cada degrau e alojamento de rolamento, compensando as descontinuidades geométricas por meio dos fatores de concentração de tensões (Kt)."
+    conc_text += "A utilização da teoria da energia de distorção combinada de Von Mises (via norma ASME) permitiu escalar com precisão o diâmetro da seção transversal do eixo. Adicionalmente, especificou-se as matrizes geométricas para as chavetas de bloqueio e analisou-se o fator de rigidez local do eixo, completando o rol de restrições de projetos rotativos."
     pdf.multi_cell(0, 6, clean_text(conc_text))
     
     pdf.ln(15)
@@ -491,7 +565,6 @@ def gerar_relatorio_lote(lista_exercicios, ns):
 # =========================================================
 # 4. ESTRUTURA DO SITE E MENU LATERAL
 # =========================================================
-st.set_page_config(page_title="Projeto Eixos UESC", layout="wide")
 st.sidebar.markdown("# 🎓 UESC - Eng. Mecânica")
 st.sidebar.markdown("### Elementos de Máquinas I")
 st.sidebar.markdown("---")
@@ -520,7 +593,7 @@ if menu in ["Visualizar Exercício 1", "Visualizar Exercício 2"]:
     if st.button("Calcular Esforços"):
         z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, dc = motor_ex1_2(n, P, 96, 6.0, 10.0)
         df_tab = gerar_tabela_pontos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, Se, Sy, ns)
-        st.dataframe(df_tab.style.format({"Momento M": "{:.1f}", "Torque T": "{:.1f}", "Cortante V": "{:.1f}", "D_min": "{:.3f}"}), use_container_width=True)
+        st.dataframe(df_tab.style.format({"Momento M": "{:.1f}", "Torque T": "{:.1f}", "Cortante V": "{:.1f}", "D_min": "{:.3f}", "Chav_W": "{:.3f}", "Chav_H": "{:.3f}", "Chav_L": "{:.3f}", "Rigidez EI": "{:.2e}"}), use_container_width=True)
         st.pyplot(plotar_diagramas_completos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes))
 
 elif menu == "Visualizar Exercício 3":
@@ -535,7 +608,7 @@ elif menu == "Visualizar Exercício 3":
     if st.button("Calcular Esforços"):
         z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, dc = motor_ex3(n, 10.0, 6.0, 4.0)
         df_tab = gerar_tabela_pontos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, Se, Sy, ns)
-        st.dataframe(df_tab.style.format({"Momento M": "{:.1f}", "Torque T": "{:.1f}", "Cortante V": "{:.1f}", "D_min": "{:.3f}"}), use_container_width=True)
+        st.dataframe(df_tab.style.format({"Momento M": "{:.1f}", "Torque T": "{:.1f}", "Cortante V": "{:.1f}", "D_min": "{:.3f}", "Chav_W": "{:.3f}", "Chav_H": "{:.3f}", "Chav_L": "{:.3f}", "Rigidez EI": "{:.2e}"}), use_container_width=True)
         st.pyplot(plotar_diagramas_completos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes))
 
 elif menu == "Visualizar Exercício 4":
@@ -550,7 +623,7 @@ elif menu == "Visualizar Exercício 4":
     if st.button("Calcular Esforços"):
         z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, dc = motor_ex4(n)
         df_tab = gerar_tabela_pontos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, Se, Sy, ns)
-        st.dataframe(df_tab.style.format({"Momento M": "{:.1f}", "Torque T": "{:.1f}", "Cortante V": "{:.1f}", "D_min": "{:.3f}"}), use_container_width=True)
+        st.dataframe(df_tab.style.format({"Momento M": "{:.1f}", "Torque T": "{:.1f}", "Cortante V": "{:.1f}", "D_min": "{:.3f}", "Chav_W": "{:.3f}", "Chav_H": "{:.3f}", "Chav_L": "{:.3f}", "Rigidez EI": "{:.2e}"}), use_container_width=True)
         st.pyplot(plotar_diagramas_completos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes))
 
 # =========================================================
@@ -558,7 +631,7 @@ elif menu == "Visualizar Exercício 4":
 # =========================================================
 elif menu == "📄 Gerar Relatório Oficial (LaTeX)":
     st.title("📄 Emissão de Relatório Acadêmico")
-    st.markdown("Gere o PDF final com a estrutura exata do documento LaTeX da equipe, incluindo Capa da UESC, Folha de Rosto e Memória de Cálculo passo a passo.")
+    st.markdown("Gere o PDF final com a estrutura exata do documento LaTeX da equipe, incluindo Capa da UESC, Folha de Rosto, Memória de Cálculo passo a passo e detalhamento dos componentes acoplados.")
     
     exercicios_selecionados = st.multiselect(
         "Selecione as questões para incluir na entrega:", 
@@ -569,17 +642,17 @@ elif menu == "📄 Gerar Relatório Oficial (LaTeX)":
     st.sidebar.header("Segurança Global (Para o Relatório)")
     ns = st.sidebar.number_input("Fator de Segurança (ns)", value=2.0)
     
-    if st.button("Gerar PDF Oficial (Capa + Cálculos)", type="primary"):
+    if st.button("Gerar PDF Oficial (Capa + Cálculos + Chavetas)", type="primary"):
         if not exercicios_selecionados:
             st.warning("Selecione pelo menos um exercício!")
         else:
-            with st.spinner("Construindo documento acadêmico..."):
+            with st.spinner("Construindo documento acadêmico (Aguarde alguns segundos)..."):
                 pdf_bytes = gerar_relatorio_lote(exercicios_selecionados, ns)
                 
             st.success("Relatório gerado com a estrutura oficial da UESC!")
             st.download_button(
                 label="📥 Baixar Trabalho Final (PDF)",
                 data=pdf_bytes,
-                file_name=f"Trabalho_Eixos_UESC.pdf",
+                file_name=f"Trabalho_Eixos_UESC_Completo.pdf",
                 mime="application/pdf"
             )
