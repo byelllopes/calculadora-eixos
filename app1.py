@@ -7,6 +7,14 @@ from fpdf import FPDF
 import tempfile
 import os
 
+st.set_page_config(
+    page_title="Calculadora de Eixos",
+    page_icon="logo_uesc.png",
+    layout="wide"
+)
+
+st.title("Calculadora de Eixos")
+
 # =========================================================
 # 1. MATEMÁTICA E DIMENSIONAMENTO DE FADIGA
 # =========================================================
