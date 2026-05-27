@@ -13,7 +13,6 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("Calculadora de Eixos")
 # =========================================================
 # 1. MATEMÁTICA E DIMENSIONAMENTO COMPLETO
 # =========================================================
@@ -613,4 +612,5 @@ elif menu == "📄 Gerar Relatório Oficial (LaTeX)":
             with st.spinner("Construindo documento acadêmico..."):
                 pdf_bytes = gerar_relatorio_lote(exercicios_selecionados, ns)
             st.success("Relatório gerado com sucesso!")
+            st.download_button(label="📥 Baixar Trabalho Final (PDF)", data=pdf_bytes, file_name=f"Trabalho_Eixos_UESC.pdf", mime="application/pdf")
             st.download_button(label="📥 Baixar Trabalho Final (PDF)", data=pdf_bytes, file_name=f"Trabalho_Eixos_UESC.pdf", mime="application/pdf")
