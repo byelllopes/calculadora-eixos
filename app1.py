@@ -14,37 +14,77 @@ st.set_page_config(
 )
 
 st.title("Calculadora de Eixos")
-
 # =========================================================
-# 1. MATEMÁTICA E DIMENSIONAMENTO DE FADIGA
+# 1. MATEMÁTICA E DIMENSIONAMENTO COMPLETO
 # =========================================================
 def calcular_diametro_local(M, T, V, Kt, Se, Sy, ns):
+    """Cálculo de Fadiga via ASME/Von Mises"""
     if M < 1.0 and T < 1.0 and V > 1.0: 
         return math.sqrt((2.94 * Kt * V * ns) / Se)
     termo_flexao = (Kt * M / Se) ** 2
     termo_torcao = 0.75 * ((T / Sy) ** 2)
     return ((32 * ns / math.pi) * math.sqrt(termo_flexao + termo_torcao)) ** (1 / 3)
 
+def calcular_geometria_engrenagem(Z, Pd):
+    """Cinemática e Geometria do Dente (AGMA)"""
+    D = Z / Pd
+    pc = math.pi / Pd
+    a = 1.0 / Pd
+    b = 1.25 / Pd
+    ht = a + b
+    return D, pc, a, b, ht
+
+def dimensionar_chaveta(T, D_eixo, Sy, ns):
+    """Dimensionamento de Chaveta (Cisalhamento e Esmagamento)"""
+    # Proporções padronizadas ANSI
+    w = D_eixo / 4.0
+    h = D_eixo / 4.0 if D_eixo <= 2.5 else D_eixo / 6.0
+    
+    F_chaveta = T / (D_eixo / 2.0)
+    Ssy = 0.5 * Sy # Tensão de escoamento ao cisalhamento
+    
+    L_cisalhamento = (F_chaveta * ns) / (w * Ssy)
+    L_esmagamento = (F_chaveta * ns) / ((h / 2.0) * Sy)
+    
+    L_min = max(L_cisalhamento, L_esmagamento)
+    L_comercial = math.ceil(L_min * 4) / 4.0 # Arredonda para 1/4 pol
+    return w, h, L_min, L_comercial, L_cisalhamento > L_esmagamento
+
+def calcular_deflexao_maxima(M_res, z, z_apoios, D_avg):
+    """Dupla Integração Numérica para encontrar a Flecha (Rigidez)"""
+    E = 30e6 # Módulo de Elasticidade Aço (psi)
+    I = (math.pi * (D_avg**4)) / 64.0
+    dz = z[1] - z[0]
+    
+    # Integração M/EI -> Rotação (theta) -> Deflexão (y)
+    theta = np.cumsum(M_res) * dz / (E * I)
+    y = np.cumsum(theta) * dz
+    
+    # Condições de Contorno: Deflexão nula nos mancais
+    idx_A = (np.abs(z - z_apoios[0])).argmin()
+    idx_B = (np.abs(z - z_apoios[1])).argmin()
+    
+    m = (y[idx_B] - y[idx_A]) / (z[idx_B] - z[idx_A])
+    c = y[idx_A] - m * z[idx_A]
+    
+    y_corrigido = y - (m * z + c)
+    return np.max(np.abs(y_corrigido))
+
 def gerar_tabela_pontos(z_mesh, Vx, Vy, My, Mx, T_mesh, z_pontos, nomes, kt_list, Se, Sy, ns):
     dados = []
     for i, z_val in enumerate(z_pontos):
         idx = (np.abs(z_mesh - z_val)).argmin()
         idx_min, idx_max = max(0, idx - 5), min(len(z_mesh)-1, idx + 5)
-        
         M_local = max(math.hypot(My[j], Mx[j]) for j in range(idx_min, idx_max+1))
         T_local = max(abs(T_mesh[j]) for j in range(idx_min, idx_max+1))
         V_local = max(math.hypot(Vx[j], Vy[j]) for j in range(idx_min, idx_max+1))
-        
         Kt = kt_list[i]
         D_min = calcular_diametro_local(M_local, T_local, V_local, Kt, Se, Sy, ns)
         
-        dados.append({
-            "Ponto": nomes[i], "Z (pol)": z_val, "Kt": Kt,
-            "Momento M": M_local, "Torque T": T_local, 
-            "Cortante V": V_local, "D_min": D_min
-        })
+        dados.append({"Ponto": nomes[i], "Z": z_val, "Kt": Kt, "M": M_local, "T": T_local, "V": V_local, "D": D_min})
     return pd.DataFrame(dados)
 
+# Gráficos (Mantidos iguais à versão anterior)
 def plotar_diagramas_completos(z, Vx, Vy, My, Mx, T_mesh, z_pontos, nomes):
     fig, axs = plt.subplots(3, 2, figsize=(14, 12), sharex=True)
     M_res = np.sqrt(My**2 + Mx**2)
@@ -55,7 +95,6 @@ def plotar_diagramas_completos(z, Vx, Vy, My, Mx, T_mesh, z_pontos, nomes):
         ax.set_title(title, fontsize=11, fontweight='bold')
         ax.grid(True, linestyle='--', alpha=0.5)
         ax.axhline(0, color='black', linewidth=1)
-        
         for i, zp in enumerate(z_pontos):
             ax.axvline(zp, color='black', linestyle=':', alpha=0.4)
             if is_step and i < len(z_pontos) - 1:
@@ -63,36 +102,28 @@ def plotar_diagramas_completos(z, Vx, Vy, My, Mx, T_mesh, z_pontos, nomes):
                 mid_idx = (np.abs(z - mid_zp)).argmin()
                 val_plateau = data[mid_idx]
                 if abs(val_plateau) > 0.1:
-                    ax.annotate(f"{val_plateau:.1f}", (mid_zp, val_plateau), 
-                                textcoords="offset points", xytext=(0, 4), ha='center', 
-                                fontsize=9, fontweight='bold', color='black',
-                                bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="none", alpha=0.7))
+                    ax.annotate(f"{val_plateau:.1f}", (mid_zp, val_plateau), textcoords="offset points", xytext=(0, 4), ha='center', fontsize=9, fontweight='bold', bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="none", alpha=0.7))
             elif not is_step:
                 idx = (np.abs(z - zp)).argmin()
                 val = data[idx]
                 if abs(val) > 0.1:
                     ax.plot(zp, val, 'ko', markersize=4)
-                    ax.annotate(f"{val:.1f}", (zp, val), 
-                                textcoords="offset points", xytext=(0, 6), ha='center', 
-                                fontsize=9, fontweight='bold', color='black')
+                    ax.annotate(f"{val:.1f}", (zp, val), textcoords="offset points", xytext=(0, 6), ha='center', fontsize=9, fontweight='bold')
 
     annotate_plot(axs[0, 0], T_mesh, "Diagrama de Torque (T) [lb.pol]", is_step=True, color_base='green')
     annotate_plot(axs[1, 0], Vx, "Esforço Cortante XZ (Vx) [lb]", is_step=True, color_base='blue')
     annotate_plot(axs[2, 0], My, "Momento Fletor XZ (My) [lb.pol]", is_step=False, color_base='red')
-    
     annotate_plot(axs[0, 1], Vy, "Esforço Cortante YZ (Vy) [lb]", is_step=True, color_base='blue')
     annotate_plot(axs[1, 1], Mx, "Momento Fletor YZ (Mx) [lb.pol]", is_step=False, color_base='red')
     annotate_plot(axs[2, 1], M_res, "Momento Fletor Resultante (M_max) [lb.pol]", is_step=False, color_base='purple')
-
     for ax in [axs[0,0], axs[0,1]]:
         for i, zp in enumerate(z_pontos):
             ax.text(zp, ax.get_ylim()[1], f" {nomes[i]}", rotation=90, va='top', ha='right', alpha=0.7, fontsize=8)
-
     plt.tight_layout()
     return fig
 
 # =========================================================
-# 2. MOTORES DE RESOLUÇÃO
+# 2. MOTORES DE RESOLUÇÃO (Atualizados com Z dos Apoios)
 # =========================================================
 def motor_ex1_2(n, P, Z_dentes, Pd, D_polia):
     T = (P * 63025) / n
@@ -112,8 +143,9 @@ def motor_ex1_2(n, P, Z_dentes, Pd, D_polia):
     T_mesh = T * ((z >= 10) & (z <= 26))
     
     z_pontos, nomes, kt_list = [0, 10, 20, 26], ["Mancal A", "Engrenagem B", "Mancal C", "Polia D"], [2.5, 2.0, 2.5, 2.0]
+    z_apoios = [0, 20]
     dados_calc = {"T": T, "FtB": F_tB, "FrB": F_rB, "FtD": F_tD, "FD": F_D, "FDx": F_Dx, "FDy": F_Dy, "RAx": R_Ax, "RCx": R_Cx, "RAy": R_Ay, "RCy": R_Cy}
-    return z, Vx, Vy, My, Mx, T_mesh, z_pontos, nomes, kt_list, dados_calc
+    return z, Vx, Vy, My, Mx, T_mesh, z_pontos, nomes, kt_list, z_apoios, dados_calc
 
 def motor_ex3(n, P_entrada, P_saida_C, P_saida_D):
     T_A, T_C, T_D = (P_entrada*63025)/n, (P_saida_C*63025)/n, (P_saida_D*63025)/n
@@ -133,8 +165,9 @@ def motor_ex3(n, P_entrada, P_saida_C, P_saida_D):
     T_mesh = T_A*((z>=0)&(z<12)) + T_D*((z>=12)&(z<=22))
     
     z_pontos, nomes, kt_list = [0, 6, 12, 22, 26], ["Polia A", "Mancal B", "Engrenagem C", "Corrente D", "Mancal E"], [2.0, 2.5, 2.0, 2.0, 2.5]
+    z_apoios = [6, 26]
     dados_calc = {"TA": T_A, "TC": T_C, "TD": T_D, "FA": F_A, "FtC": F_tC, "FrC": F_rC, "FD": F_D, "RBx": R_Bx, "REx": R_Ex, "RBy": R_By, "REy": R_Ey}
-    return z, Vx, Vy, My, Mx, T_mesh, z_pontos, nomes, kt_list, dados_calc
+    return z, Vx, Vy, My, Mx, T_mesh, z_pontos, nomes, kt_list, z_apoios, dados_calc
 
 def motor_ex4(n):
     T_C, T_B, T_D, T_E = (11*63025)/n, (5*63025)/n, (3*63025)/n, (3*63025)/n
@@ -156,8 +189,9 @@ def motor_ex4(n):
     T_mesh = T_B*((z>=4)&(z<10)) + (T_D+T_E)*((z>=10)&(z<16)) + T_E*((z>=16)&(z<=20))
     
     z_pontos, nomes, kt_list = [0, 4, 10, 16, 20, 24], ["Mancal A", "Pinhão B", "Corrente C", "Polia D", "Polia E", "Mancal F"], [2.5, 2.0, 2.0, 2.0, 2.0, 2.5]
+    z_apoios = [0, 24]
     dados_calc = {"TC": T_C, "TB": T_B, "TD": T_D, "TE": T_E, "FtB": F_tB, "FrB": F_rB, "FCx": F_Cx, "FCy": F_Cy, "FD": F_D, "FEx": F_Ex, "FEy": F_Ey, "RAx": R_Ax, "RFx": R_Fx, "RAy": R_Ay, "RFy": R_Fy}
-    return z, Vx, Vy, My, Mx, T_mesh, z_pontos, nomes, kt_list, dados_calc
+    return z, Vx, Vy, My, Mx, T_mesh, z_pontos, nomes, kt_list, z_apoios, dados_calc
 
 # =========================================================
 # 3. GERADOR DO SUPER PDF
@@ -170,7 +204,15 @@ DADOS_MATERIAIS = {
 }
 
 def clean_text(text):
-    return text.encode('latin-1', 'replace').decode('latin-1')
+    return str(text).encode('latin-1', 'replace').decode('latin-1')
+
+def nota_didatica(pdf, texto):
+    pdf.ln(2)
+    pdf.set_font("Times", 'I', 11)
+    pdf.set_text_color(80, 80, 80)
+    pdf.multi_cell(0, 5, clean_text(f"Nota Didática: {texto}"))
+    pdf.set_text_color(0, 0, 0)
+    pdf.ln(3)
 
 def equacao(pdf, eq_literal, eq_numeros):
     pdf.set_font("Times", 'I', 12)
@@ -251,7 +293,7 @@ def gerar_relatorio_lote(lista_exercicios, ns):
     pdf.set_font("Times", 'B', 16)
     pdf.cell(0, 10, clean_text("Introdução e Complementos Técnicos"), ln=True)
     pdf.set_font("Times", '', 12)
-    intro = "Para todos os problemas de eixos rotativos sujeitos a carregamentos combinados de flexão e torção cíclica, adota-se a formulação da norma ASME/Von Mises para fadiga:\n"
+    intro = "Para todos os problemas de eixos rotativos sujeitos a carregamentos combinados de flexão e torção cíclica, adota-se a formulação da norma ASME/Von Mises para fadiga.\n"
     pdf.multi_cell(0, 6, clean_text(intro))
     pdf.ln(2)
 
@@ -266,22 +308,16 @@ def gerar_relatorio_lote(lista_exercicios, ns):
         pdf.ln(5)
 
     pdf.set_font("Times", '', 12)
-    intro2 = "O dimensionamento escala os diâmetros mínimos de forma individual para cada elemento (D1, D2, D3...) com base nos fatores de concentração de tensão (Kt).\n\n"
-    intro2 += "A seguir, são descritos os conceitos e complementos técnicos que fundamentam as memórias de cálculo deste laudo:\n"
+    intro2 = "O projeto avançado transcende a resistência à fadiga, incorporando também o dimensionamento cinemático das engrenagens (AGMA), o projeto geométrico das chavetas (ANSI) e a análise de rigidez e deflexão estrutural (Euler-Bernoulli)."
     pdf.multi_cell(0, 6, clean_text(intro2))
-    pdf.ln(10)
+    pdf.ln(8)
 
     fundamentos = [
-        ("Afastamentos dos elementos", "Os afastamentos representam as distâncias entre mancais, engrenagens e pontos de aplicação das forças. Essas distâncias influenciam diretamente o momento fletor do eixo."),
-        ("Torque transmitido", "O torque representa o esforço de torção responsável pela transmissão de potência no eixo. Quanto maior a potência transmitida, maior o torque atuante."),
-        ("Forças atuantes", "As forças tangenciais e radiais aplicadas pelos elementos mecânicos geram esforços de flexão no eixo."),
-        ("Diagrama de corpo livre", "No diagrama de corpo livre representamos todas as forças e reações atuantes no eixo para aplicar as equações de equilíbrio."),
-        ("Reações nos mancais", "As reações nos mancais foram calculadas utilizando as equações de equilíbrio estático. Elas representam as forças de apoio que equilibram o sistema."),
-        ("Esforço cortante", "O diagrama de esforço cortante mostra como as forças internas variam ao longo do eixo. As mudanças no gráfico ocorrem nos pontos de aplicação das forças."),
-        ("Momento fletor", "O momento fletor representa a tendência de flexão do eixo. O ponto de maior momento é considerado crítico para o dimensionamento."),
-        ("Torção no eixo", "A transmissão de torque gera tensões de cisalhamento devido à torção no eixo."),
-        ("Dimensionamento", "O dimensionamento foi realizado considerando os esforços combinados de flexão e torção para garantir segurança mecânica."),
-        ("Chavetas", "A chaveta é responsável pela transmissão de torque entre o eixo e o elemento acoplado.")
+        ("Afastamentos e Reações", "As distâncias entre mancais e engrenagens influenciam diretamente o momento fletor do eixo. As reações nos apoios garantem o equilíbrio estático do conjunto."),
+        ("Diagramas de Esforços", "A plotagem do diagrama de corpo livre, cortante e momento fletor (XZ e YZ) permite localizar com precisão a secção crítica do eixo para o dimensionamento."),
+        ("Geometria de Engrenagens", "Seguindo os padrões AGMA, dimensionam-se as proporções do dente (adendo, dedendo e passo circular) com base no número de dentes e no passo diametral."),
+        ("Chavetas (Keys)", "A chaveta transmite torque por cisalhamento e esmagamento. O comprimento útil comercial é ditado pela máxima solicitação e pelo limite de escoamento local do material."),
+        ("Rigidez e Deflexão", "Mancais engripam e engrenagens desalinham se o eixo fletir excessivamente. A integração numérica do diagrama de momento fletor fornece a flecha máxima.")
     ]
 
     for titulo, desc in fundamentos:
@@ -289,12 +325,12 @@ def gerar_relatorio_lote(lista_exercicios, ns):
         pdf.cell(0, 6, clean_text(f"- {titulo}:"), ln=True)
         pdf.set_font("Times", '', 12)
         pdf.multi_cell(0, 6, clean_text(desc))
-        pdf.ln(8)
+        pdf.ln(4)
     
     # ================= RESOLUÇÃO DOS EXERCÍCIOS =================
     for ex in lista_exercicios:
         mat_info = DADOS_MATERIAIS[ex]
-        num_ex = ex.split()[-1] # Obtém '1', '2', '3' ou '4'
+        num_ex = ex.split()[-1]
         
         pdf.add_page()
         pdf.set_font("Times", 'B', 16)
@@ -306,40 +342,37 @@ def gerar_relatorio_lote(lista_exercicios, ns):
         # --- EXERCÍCIOS 1 E 2 ---
         if ex in ["Exercício 1", "Exercício 2"]:
             n, P = (550, 30.0) if ex == "Exercício 1" else (750, 20.0)
-            z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, dc = motor_ex1_2(n, P, 96, 6.0, 10.0 if ex == "Exercício 1" else 9.0)
+            z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, z_apoios, dc = motor_ex1_2(n, P, 96, 6.0, 10.0 if ex == "Exercício 1" else 9.0)
             
             pdf.set_font("Times", 'B', 12)
-            pdf.cell(0, 8, clean_text("Passo 1 - Torque transmitido"), ln=True)
+            pdf.cell(0, 8, clean_text("Passo 1 - Cinemática e Geometria da Engrenagem (AGMA)"), ln=True)
             pdf.set_font("Times", '', 12)
-            pdf.cell(0, 6, clean_text(f"Dados: n = {n} rpm, P = {P} hp."), ln=True)
+            D_eng, pc, a, b, ht = calcular_geometria_engrenagem(96, 6.0)
+            equacao(pdf, "D = Z / P_d", f"D = 96 / 6 = {D_eng:.2f} pol")
+            equacao(pdf, "p_c = pi / P_d", f"p_c = 3.1416 / 6 = {pc:.3f} pol")
+            equacao(pdf, "h_t = a + b = (1/P_d) + (1.25/P_d)", f"h_t = {a:.3f} + {b:.3f} = {ht:.3f} pol")
+            
+            pdf.set_font("Times", 'B', 12)
+            pdf.cell(0, 8, clean_text("Passo 2 - Torque transmitido"), ln=True)
+            pdf.set_font("Times", '', 12)
             equacao(pdf, "T = (P * 63025) / n", f"T = ({P} * 63025) / {n} = {dc['T']:.2f} lb.pol")
             
             pdf.set_font("Times", 'B', 12)
-            pdf.cell(0, 8, clean_text("Passo 2 - Forças atuantes nos elementos"), ln=True)
+            pdf.cell(0, 8, clean_text("Passo 3 - Forças atuantes nos elementos"), ln=True)
             pdf.set_font("Times", '', 12)
-            pdf.cell(0, 6, clean_text(">> Na Engrenagem B (z = 10 pol):"), ln=True)
-            equacao(pdf, "F_tB = T / R_B", f"F_tB = {dc['T']:.2f} / 8 = {dc['FtB']:.2f} lb")
+            equacao(pdf, "F_tB = T / R_B", f"F_tB = {dc['T']:.2f} / {(D_eng/2):.2f} = {dc['FtB']:.2f} lb")
             equacao(pdf, "F_rB = F_tB * tan(20 graus)", f"F_rB = {dc['FtB']:.2f} * 0.364 = {dc['FrB']:.2f} lb")
-            
-            pdf.cell(0, 6, clean_text(f">> Na Polia D (z = 26 pol, D = {10.0 if ex=='Exercício 1' else 9.0} pol):"), ln=True)
             equacao(pdf, "F_D = 1.5 * (T / R_D)", f"F_D = 1.5 * ({dc['T']:.2f} / {5.0 if ex=='Exercício 1' else 4.5}) = {dc['FD']:.2f} lb")
-            equacao(pdf, "F_Dx = F_D * cos(40 graus)", f"F_Dx = {dc['FD']:.2f} * 0.766 = {dc['FDx']:.2f} lb")
-            equacao(pdf, "F_Dy = F_D * sin(40 graus)", f"F_Dy = {dc['FD']:.2f} * 0.642 = {abs(dc['FDy']):.2f} lb")
             
             pdf.set_font("Times", 'B', 12)
-            pdf.cell(0, 8, clean_text("Passo 3 - Reações nos mancais (Equilíbrio Estático)"), ln=True)
+            pdf.cell(0, 8, clean_text("Passo 4 - Reações nos mancais (Equilíbrio Estático)"), ln=True)
             pdf.set_font("Times", '', 12)
-            pdf.cell(0, 6, clean_text(">> Mancais A (z=0) e C (z=20) no Plano Horizontal (XZ):"), ln=True)
-            equacao(pdf, "R_Cx = - [ (F_tB * 10) + (F_Dx * 26) ] / 20", f"R_Cx = {dc['RCx']:.2f} lb")
-            equacao(pdf, "R_Ax = - (F_tB + F_Dx + R_Cx)", f"R_Ax = {dc['RAx']:.2f} lb")
-            
-            pdf.cell(0, 6, clean_text(">> Mancais A (z=0) e C (z=20) no Plano Vertical (YZ):"), ln=True)
-            equacao(pdf, "R_Cy = - [ (-F_rB * 10) + (F_Dy * 26) ] / 20", f"R_Cy = {dc['RCy']:.2f} lb")
-            equacao(pdf, "R_Ay = - (-F_rB + F_Dy + R_Cy)", f"R_Ay = {dc['RAy']:.2f} lb")
+            equacao(pdf, "Plano Horizontal (XZ)", f"R_Ax = {dc['RAx']:.2f} lb | R_Cx = {dc['RCx']:.2f} lb")
+            equacao(pdf, "Plano Vertical (YZ)", f"R_Ay = {dc['RAy']:.2f} lb | R_Cy = {dc['RCy']:.2f} lb")
             
         # --- EXERCÍCIO 3 ---
         elif ex == "Exercício 3":
-            z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, dc = motor_ex3(200, 10.0, 6.0, 4.0)
+            z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, z_apoios, dc = motor_ex3(200, 10.0, 6.0, 4.0)
             
             pdf.set_font("Times", 'B', 12)
             pdf.cell(0, 8, clean_text("Passo 1 - Distribuição de Torque"), ln=True)
@@ -350,15 +383,10 @@ def gerar_relatorio_lote(lista_exercicios, ns):
             pdf.set_font("Times", 'B', 12)
             pdf.cell(0, 8, clean_text("Passo 2 - Forças atuantes nos elementos"), ln=True)
             pdf.set_font("Times", '', 12)
-            pdf.cell(0, 6, clean_text(">> Na Polia A (z = 0 pol):"), ln=True)
-            equacao(pdf, "F_A = 2.0 * (T_A / R_A)", f"F_A = {dc['FA']:.2f} lb (-Y)")
-            
-            pdf.cell(0, 6, clean_text(">> Na Engrenagem C (z = 12 pol):"), ln=True)
-            equacao(pdf, "F_tC = T_C / R_C", f"F_tC = {dc['FtC']:.2f} lb (+X)")
-            equacao(pdf, "F_rC = F_tC * tan(20 graus)", f"F_rC = {dc['FrC']:.2f} lb (+Y)")
-            
-            pdf.cell(0, 6, clean_text(">> Na Corrente D (z = 22 pol):"), ln=True)
-            equacao(pdf, "F_D = T_D / R_D", f"F_D = {dc['FD']:.2f} lb (+Y)")
+            equacao(pdf, "F_A = 2.0 * (T_A / R_A)", f"Polia A: F_A = {dc['FA']:.2f} lb (-Y)")
+            equacao(pdf, "F_tC = T_C / R_C", f"Engr. C: F_tC = {dc['FtC']:.2f} lb (+X)")
+            equacao(pdf, "F_rC = F_tC * tan(20 graus)", f"Engr. C: F_rC = {dc['FrC']:.2f} lb (+Y)")
+            equacao(pdf, "F_D = T_D / R_D", f"Corrente D: F_D = {dc['FD']:.2f} lb (+Y)")
             
             pdf.set_font("Times", 'B', 12)
             pdf.cell(0, 8, clean_text("Passo 3 - Reações de Apoio nos Mancais B(z=6) e E(z=26)"), ln=True)
@@ -368,7 +396,7 @@ def gerar_relatorio_lote(lista_exercicios, ns):
 
         # --- EXERCÍCIO 4 ---
         else:
-            z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, dc = motor_ex4(480)
+            z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, z_apoios, dc = motor_ex4(480)
             
             pdf.set_font("Times", 'B', 12)
             pdf.cell(0, 8, clean_text("Passo 1 - Torques e Forças Atuantes"), ln=True)
@@ -376,16 +404,9 @@ def gerar_relatorio_lote(lista_exercicios, ns):
             equacao(pdf, "T_B = (5 * 63025) / 480", f"T_B = {dc['TB']:.2f} lb.pol (Pinhão B)")
             
             pdf.set_font("Times", '', 12)
-            pdf.cell(0, 6, clean_text(">> Pinhão B (z = 4 pol):"), ln=True)
             equacao(pdf, "F_tB = T_B / R_B", f"F_tB = {dc['FtB']:.2f} lb (+X)")
-            
-            pdf.cell(0, 6, clean_text(">> Corrente C (z = 10 pol) a 15 graus da vertical:"), ln=True)
             equacao(pdf, "F_Cx = -F_C * sin(15 graus)", f"F_Cx = {dc['FCx']:.2f} lb")
-            equacao(pdf, "F_Cy = -F_C * cos(15 graus)", f"F_Cy = {dc['FCy']:.2f} lb")
-            
-            pdf.cell(0, 6, clean_text(">> Polia E (z = 20 pol) a 30 graus da horizontal:"), ln=True)
             equacao(pdf, "F_Ex = F_E * cos(30 graus)", f"F_Ex = {dc['FEx']:.2f} lb (+X)")
-            equacao(pdf, "F_Ey = F_E * sin(30 graus)", f"F_Ey = {dc['FEy']:.2f} lb (+Y)")
             
             pdf.set_font("Times", 'B', 12)
             pdf.cell(0, 8, clean_text("Passo 2 - Reações de Apoio (Mancais A e F)"), ln=True)
@@ -393,53 +414,75 @@ def gerar_relatorio_lote(lista_exercicios, ns):
             equacao(pdf, "Plano XZ (Horizontal)", f"R_Ax = {dc['RAx']:.2f} lb | R_Fx = {dc['RFx']:.2f} lb")
             equacao(pdf, "Plano YZ (Vertical)", f"R_Ay = {dc['RAy']:.2f} lb | R_Fy = {dc['RFy']:.2f} lb")
 
-        # ==================== GRÁFICOS (PASSO 4) ====================
-        pdf.add_page()
+        # ==================== GRÁFICOS (PASSO X) ====================
+        passo_atual = 5 if ex in ["Exercício 1", "Exercício 2"] else 4
+        if pdf.get_y() + 150 > 280: pdf.add_page()
+        else: pdf.ln(5)
+            
         pdf.set_font("Times", 'B', 14)
-        pdf.cell(0, 8, clean_text(f"Passo 4 - Diagramas de Esforços Internos"), ln=True)
+        pdf.cell(0, 8, clean_text(f"Passo {passo_atual} - Diagramas de Esforços Internos"), ln=True)
         
         fig = plotar_diagramas_completos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes)
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
             fig.savefig(tmp.name, format="png", bbox_inches="tight", dpi=200)
             pdf.image(tmp.name, x=25, y=pdf.get_y(), w=160) 
         plt.close(fig)
+        pdf.set_y(pdf.get_y() + 130)
         
-        # Pula para a próxima página de forma segura
-        pdf.add_page()
-        
-        # ==================== VALIDAÇÃO MDSOLIDS (PASSO 5) ====================
+        # ==================== VALIDAÇÃO MDSOLIDS ====================
         arq_md_png = f"mdsolids_ex{num_ex}.png"
         arq_md_jpg = f"mdsolids_ex{num_ex}.jpg"
-        
         if os.path.exists(arq_md_png) or os.path.exists(arq_md_jpg):
+            passo_atual += 1
             pdf.set_font("Times", 'B', 14)
-            pdf.cell(0, 8, clean_text("Passo 5 - Validação Computacional (MDSolids)"), ln=True)
-            
-            texto_validacao = "A fim de validar os diagramas analíticos e os cálculos de reações gerados pelo algoritmo em Python, realizou-se uma simulação computacional utilizando o software MDSolids. As imagens abaixo comprovam a convergência dos momentos fletores e esforços cortantes nos planos horizontal e vertical."
+            pdf.cell(0, 8, clean_text(f"Passo {passo_atual} - Validação Computacional (MDSolids)"), ln=True)
             pdf.set_font("Times", '', 12)
-            pdf.multi_cell(0, 6, clean_text(texto_validacao))
+            pdf.multi_cell(0, 6, clean_text("A imagem abaixo comprova a convergência dos momentos fletores e esforços cortantes simulados no MDSolids com a integração vetorial do algoritmo em Python."))
             pdf.ln(5)
-            
             imagem_md = arq_md_png if os.path.exists(arq_md_png) else arq_md_jpg
             pdf.image(imagem_md, x=20, w=170)
+            pdf.add_page()
             
-            pdf.add_page() # Adiciona nova página após a validação para o passo final
-            
-        # ==================== DIMENSIONAMENTO (PASSO 6) ====================
+        # ==================== DIMENSIONAMENTO E CHAVETAS ====================
+        passo_atual += 1
         df_tabela = gerar_tabela_pontos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, mat_info["Se"], mat_info["Sy"], ns)
         linha_critica = df_tabela.loc[df_tabela['D_min'].idxmax()]
         
-        # O título agora é Passo 6 se a validação ocorreu, senão continua sendo Passo 5 no documento do aluno
-        passo_dim = "Passo 6" if (os.path.exists(arq_md_png) or os.path.exists(arq_md_jpg)) else "Passo 5"
-        
+        if pdf.get_y() + 90 > 280: pdf.add_page()
+            
+        pdf.ln(10)
         pdf.set_font("Times", 'B', 14)
-        pdf.cell(0, 8, clean_text(f"{passo_dim} - Dimensionamento e Chavetas"), ln=True)
+        pdf.cell(0, 8, clean_text(f"Passo {passo_atual} - Rigidez, Dimensionamento e Chavetas"), ln=True)
         
+        # Rigidez / Deflexão
+        pdf.set_font("Times", 'I', 12)
+        pdf.cell(0, 6, clean_text("a) Avaliação de Rigidez (Deflexão por Euler-Bernoulli):"), ln=True)
         pdf.set_font("Times", '', 12)
-        pdf.cell(0, 6, clean_text(f"Ponto crítico selecionado: {linha_critica['Ponto']} (z = {linha_critica['Z (pol)']} pol)."), ln=True)
+        M_res_mesh = np.sqrt(My**2 + Mx**2)
+        D_avg = df_tabela['D'].mean() + 0.25 # Diâmetro médio aproximado arredondado
+        deflexao_max = calcular_deflexao_maxima(M_res_mesh, z, z_apoios, D_avg)
+        pdf.multi_cell(0, 6, clean_text(f"Através de dupla integração numérica do diagrama de momentos, a flecha máxima teórica estimada para o eixo é de {deflexao_max:.5f} polegadas. Esse valor é essencial para garantir o não-desalinhamento das engrenagens."))
+        pdf.ln(4)
+
+        # Dimensionamento
+        pdf.set_font("Times", 'I', 12)
+        pdf.cell(0, 6, clean_text("b) Fadiga (Ponto Crítico):"), ln=True)
+        pdf.set_font("Times", '', 12)
+        pdf.cell(0, 6, clean_text(f"O momento máximo ocorreu no elemento {linha_critica['Ponto']} (z = {linha_critica['Z']} pol)."), ln=True)
+        equacao(pdf, "d = [ (32*ns/pi) * sqrt( (M_max/Se)^2 + 0.75*(T/Sy)^2 ) ]^(1/3)", f"d_min = {linha_critica['D']:.3f} pol")
+
+        # Chavetas
+        pdf.set_font("Times", 'I', 12)
+        pdf.cell(0, 6, clean_text("c) Dimensionamento Geométrico da Chaveta ANSI (Engrenagem Principal):"), ln=True)
+        pdf.set_font("Times", '', 12)
+        # Identificar qual elemento tem mais torque
+        linha_torque = df_tabela.loc[df_tabela['T'].idxmax()]
+        T_chav = linha_torque['T']
+        D_chav = linha_torque['D'] + 0.1 # Ajuste comercial
+        w, h, L_min, L_comercial, falha_cisal = dimensionar_chaveta(T_chav, D_chav, mat_info["Sy"], ns)
         
-        equacao(pdf, "M_max = sqrt( M_y^2 + M_x^2 )", f"M_max = {linha_critica['Momento M']:.1f} lb.pol")
-        equacao(pdf, "d = [ (32*ns/pi) * sqrt( (M_max/Se)^2 + 0.75*(T/Sy)^2 ) ]^(1/3)", f"d = {linha_critica['D_min']:.2f} pol")
+        criterio = "Cisalhamento" if falha_cisal else "Esmagamento"
+        pdf.multi_cell(0, 6, clean_text(f"Para acoplar o elemento em z={linha_torque['Z']} pol, sob torque de {T_chav:.1f} lb.pol, recomenda-se uma chaveta de seção {w:.3f} x {h:.3f} pol. Baseado no critério de {criterio}, o comprimento útil mínimo comercial é L = {L_comercial:.2f} polegadas."))
 
         pdf.ln(5)
         pdf.set_font("Times", 'B', 10)
@@ -462,13 +505,14 @@ def gerar_relatorio_lote(lista_exercicios, ns):
             pdf.set_font("Times", '', 10)
             pdf.ln()
 
-    # ================= CONCLUSÃO E REFERÊNCIAS (ÚLTIMA PÁGINA) =================
+    # ================= CONCLUSÃO E REFERÊNCIAS =================
     pdf.add_page()
     pdf.set_font("Times", 'B', 16)
     pdf.cell(0, 10, clean_text("Conclusão Geral"), ln=True)
     pdf.set_font("Times", '', 12)
     conc_text = "Neste trabalho, os eixos de transmissão foram analisados e dimensionados com sucesso sob carregamentos de fadiga severos. Aplicando as equações de equilíbrio estático, foi possível gerar os diagramas de corpo livre, esforço cortante e momento fletor espacial.\n\n"
-    conc_text += "A utilização da teoria da energia de distorção combinada de Von Mises (via norma ASME) permitiu escalar com precisão o diâmetro da seção transversal do eixo para cada degrau e alojamento de rolamento, compensando as descontinuidades geométricas por meio dos fatores de concentração de tensões (Kt)."
+    conc_text += "A utilização da teoria da energia de distorção combinada de Von Mises (via norma ASME) permitiu escalar com precisão o diâmetro da seção transversal do eixo para cada degrau e alojamento de rolamento, compensando as descontinuidades geométricas por meio dos fatores de concentração de tensões (Kt).\n\n"
+    conc_text += "Por fim, o projeto foi complementado pelo dimensionamento cinemático das engrenagens, projeto das chavetas de acoplamento e verificação da rigidez flexional (deflexão) do eixo."
     pdf.multi_cell(0, 6, clean_text(conc_text))
     
     pdf.ln(15)
@@ -504,9 +548,6 @@ menu = st.sidebar.selectbox("Navegação:", [
     "📄 Gerar Relatório Oficial (LaTeX)"
 ])
 
-# =========================================================
-# INTERFACES DE VISUALIZAÇÃO NA TELA
-# =========================================================
 if menu in ["Visualizar Exercício 1", "Visualizar Exercício 2"]:
     st.title(f"⚙️ Análise Dinâmica - {menu.split()[-2]} {menu.split()[-1]}")
     n = st.sidebar.number_input("Rotação (RPM)", value=550 if "1" in menu else 750)
@@ -518,9 +559,9 @@ if menu in ["Visualizar Exercício 1", "Visualizar Exercício 2"]:
     ns = st.sidebar.number_input("Fator de Segurança", value=2.0)
     
     if st.button("Calcular Esforços"):
-        z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, dc = motor_ex1_2(n, P, 96, 6.0, 10.0)
+        z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, z_ap, dc = motor_ex1_2(n, P, 96, 6.0, 10.0)
         df_tab = gerar_tabela_pontos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, Se, Sy, ns)
-        st.dataframe(df_tab.style.format({"Momento M": "{:.1f}", "Torque T": "{:.1f}", "Cortante V": "{:.1f}", "D_min": "{:.3f}"}), use_container_width=True)
+        st.dataframe(df_tab.style.format({"M": "{:.1f}", "T": "{:.1f}", "V": "{:.1f}", "D": "{:.3f}"}), use_container_width=True)
         st.pyplot(plotar_diagramas_completos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes))
 
 elif menu == "Visualizar Exercício 3":
@@ -533,9 +574,9 @@ elif menu == "Visualizar Exercício 3":
     ns = st.sidebar.number_input("Fator de Segurança", value=2.0)
     
     if st.button("Calcular Esforços"):
-        z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, dc = motor_ex3(n, 10.0, 6.0, 4.0)
+        z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, z_ap, dc = motor_ex3(n, 10.0, 6.0, 4.0)
         df_tab = gerar_tabela_pontos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, Se, Sy, ns)
-        st.dataframe(df_tab.style.format({"Momento M": "{:.1f}", "Torque T": "{:.1f}", "Cortante V": "{:.1f}", "D_min": "{:.3f}"}), use_container_width=True)
+        st.dataframe(df_tab.style.format({"M": "{:.1f}", "T": "{:.1f}", "V": "{:.1f}", "D": "{:.3f}"}), use_container_width=True)
         st.pyplot(plotar_diagramas_completos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes))
 
 elif menu == "Visualizar Exercício 4":
@@ -548,17 +589,14 @@ elif menu == "Visualizar Exercício 4":
     ns = st.sidebar.number_input("Fator de Segurança", value=2.0)
     
     if st.button("Calcular Esforços"):
-        z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, dc = motor_ex4(n)
+        z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, z_ap, dc = motor_ex4(n)
         df_tab = gerar_tabela_pontos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes, kt_list, Se, Sy, ns)
-        st.dataframe(df_tab.style.format({"Momento M": "{:.1f}", "Torque T": "{:.1f}", "Cortante V": "{:.1f}", "D_min": "{:.3f}"}), use_container_width=True)
+        st.dataframe(df_tab.style.format({"M": "{:.1f}", "T": "{:.1f}", "V": "{:.1f}", "D": "{:.3f}"}), use_container_width=True)
         st.pyplot(plotar_diagramas_completos(z, Vx, Vy, My, Mx, T_mesh, z_p, nomes))
 
-# =========================================================
-# INTERFACE UNIFICADA DO LAUDO
-# =========================================================
 elif menu == "📄 Gerar Relatório Oficial (LaTeX)":
     st.title("📄 Emissão de Relatório Acadêmico")
-    st.markdown("Gere o PDF final com a estrutura exata do documento LaTeX da equipe, incluindo Capa da UESC, Folha de Rosto e Memória de Cálculo passo a passo.")
+    st.markdown("Gere o PDF final com a estrutura exata do documento LaTeX da equipe.")
     
     exercicios_selecionados = st.multiselect(
         "Selecione as questões para incluir na entrega:", 
@@ -566,7 +604,6 @@ elif menu == "📄 Gerar Relatório Oficial (LaTeX)":
         default=["Exercício 1", "Exercício 2", "Exercício 3", "Exercício 4"]
     )
     
-    st.sidebar.header("Segurança Global (Para o Relatório)")
     ns = st.sidebar.number_input("Fator de Segurança (ns)", value=2.0)
     
     if st.button("Gerar PDF Oficial (Capa + Cálculos)", type="primary"):
@@ -575,11 +612,5 @@ elif menu == "📄 Gerar Relatório Oficial (LaTeX)":
         else:
             with st.spinner("Construindo documento acadêmico..."):
                 pdf_bytes = gerar_relatorio_lote(exercicios_selecionados, ns)
-                
-            st.success("Relatório gerado com a estrutura oficial da UESC!")
-            st.download_button(
-                label="📥 Baixar Trabalho Final (PDF)",
-                data=pdf_bytes,
-                file_name=f"Trabalho_Eixos_UESC.pdf",
-                mime="application/pdf"
-            )
+            st.success("Relatório gerado com sucesso!")
+            st.download_button(label="📥 Baixar Trabalho Final (PDF)", data=pdf_bytes, file_name=f"Trabalho_Eixos_UESC.pdf", mime="application/pdf")
