@@ -530,12 +530,14 @@ def gerar_relatorio_lote(lista_exercicios, ns):
                 detalhe_chaveta = f"Chaveta Quadrada [Largura x Altura]: {linha['Chav_W']:.3f} x {linha['Chav_H']:.3f} pol. Comprimento Útil Mínimo (L): {linha['Chav_L']:.3f} pol."
                 rigidez_info = f"Rigidez à Flexão (EI): {linha['Rigidez EI']:.2e} lb.in²"
                 
-                pdf.cell(10, 6, "", ln=0) # Indentação
-                pdf.cell(0, 6, clean_text(detalhe_chaveta), ln=True)
-                pdf.cell(10, 6, "", ln=0)
-                pdf.cell(0, 6, clean_text(rigidez_info), ln=True)
+                # O comando set_x cria um recuo alinhado (parágrafo)
+                # O multi_cell quebra a linha automaticamente se o texto for muito grande
+                pdf.set_x(35)
+                pdf.multi_cell(0, 6, clean_text(detalhe_chaveta))
+                pdf.set_x(35)
+                pdf.multi_cell(0, 6, clean_text(rigidez_info))
                 pdf.ln(3)
-
+                
     # ================= CONCLUSÃO E REFERÊNCIAS (ÚLTIMA PÁGINA) =================
     pdf.add_page()
     pdf.set_font("Times", 'B', 16)
