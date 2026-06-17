@@ -19,13 +19,24 @@ st.title("Calculadora de Eixos e Componentes Acoplados")
 # 1. MATEMÁTICA E DIMENSIONAMENTO DE FADIGA E CHAVETAS
 # =========================================================
 
-def calcular_diametro_local(M, T, V, Kt, Se, Sy, ns):
+def calcular_diametro_local(M, T, V, Kt, Se, Sy, ns, Fator_Marin=0.70, Kts=1.6):
+    """
+    Calcula o diâmetro mínimo do eixo usando a norma ASME-Goodman modificada.
+    Inclui Fator de Marin (para corrigir o Se real) e Kts (concentração de tensão na torção por chaveta).
+    """
+    # 1. Correção do Limite de Resistência à Fadiga (Se)
+    Se_real = Se * Fator_Marin
+    
+    # 2. Critério alternativo para cisalhamento puro (se M e T forem quase zero)
     if M < 1.0 and T < 1.0 and V > 1.0: 
-        return math.sqrt((2.94 * Kt * V * ns) / Se)
-    termo_flexao = (Kt * M / Se) ** 2
-    termo_torcao = 0.75 * ((T / Sy) ** 2)
+        return math.sqrt((2.94 * Kt * V * ns) / Se_real)
+        
+    # 3. Equação ASME-Goodman Rigorosa
+    termo_flexao = (Kt * M / Se_real) ** 2
+    termo_torcao = 0.75 * ((Kts * T / Sy) ** 2)
+    
     return ((32 * ns / math.pi) * math.sqrt(termo_flexao + termo_torcao)) ** (1 / 3)
-
+    
 def dimensionar_chaveta(Torque, diametro_eixo, Sy_chaveta, ns):
     """ Dimensiona uma chaveta quadrada plana (ANSI). """
     if Torque < 1.0 or diametro_eixo == 0:
